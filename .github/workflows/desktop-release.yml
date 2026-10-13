@@ -1,0 +1,37 @@
+name: Desktop release
+
+# Tag a commit `desktop-v0.1.0` (or run manually) to build the Windows installer and attach it to a GitHub release.
+on:
+  push:
+    tags: ["desktop-v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri
+      - run: npm ci
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Production API the installed app talks to. Set in repo → Settings → Variables.
+          VITE_API_URL: ${{ vars.PUBLIC_APP_URL || 'https://shunbo.ai' }}
+        with:
+          projectPath: apps/desktop
+          tagName: ${{ github.ref_name }}
+          releaseName: "Shunbo ${{ github.ref_name }}"
+          releaseBody: "Windows installer for Shunbo desktop. See the assets below."
+          releaseDraft: true
+          prerelease: false
