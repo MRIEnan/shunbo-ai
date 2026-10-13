@@ -6,6 +6,9 @@ import { Mic, Speaker, Square, Pause, Play, Loader2, AlertCircle, ShieldCheck, E
 import type { Prefs } from "@/lib/store";
 import { makeApi, ApiError } from "@/lib/api";
 import type { OverlayState } from "./Overlay";
+import { info as logInfo, error as logError } from "@tauri-apps/plugin-log";
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 type Phase = "idle" | "starting" | "recording" | "paused" | "finishing";
 type Track = "mic" | "system";
@@ -47,12 +50,21 @@ export function Notetaker({ prefs, onConsent, remainingMinutes }: Props) {
       setUploads((u) => ({ ...u, pending: u.pending + 1 }));
       const api = makeApi(prefsRef.current);
       let ok = false;
-      try {
-        await api.meetingChunk(id, track, index, wav, offsetSec, durationSec);
-        ok = true;
-      } catch {
-        ok = false;
+      let lastErr = "";
+      for (let attempt = 1; attempt <= 3 && !ok; attempt++) {
+        try {
+          const r = await api.meetingChunk(id, track, index, wav, offsetSec, durationSec);
+          ok = true;
+          logInfo(`chunk ${track}#${index} (${(wav.byteLength / 1024).toFixed(0)} KB) transcribed: ${r.segments} segments`);
+        } catch (e) {
+          lastErr = e instanceof Error ? e.message : String(e);
+          const fatal = e instanceof ApiError && [401, 402, 404, 409, 413].includes(e.status);
+          logError(`chunk ${track}#${index} attempt ${attempt} failed: ${lastErr}`);
+          if (fatal) break;
+          await sleep(1500 * attempt);
+        }
       }
+      if (!ok) setError(`Upload failed for ${track} chunk ${index}: ${lastErr}`);
       pending.current--;
       setUploads((u) => ({ pending: u.pending - 1, sent: u.sent + (ok ? 1 : 0), failed: u.failed + (ok ? 0 : 1) }));
     } catch (e) {
@@ -79,10 +91,13 @@ export function Notetaker({ prefs, onConsent, remainingMinutes }: Props) {
     const p = prefsRef.current;
     try {
       const api = makeApi(p);
+      logInfo(`notetaker start requested (server ${p.apiUrl})`);
       const { item } = await api.meetingStart(title.trim() || `Meeting ${new Date().toLocaleString()}`, p.language);
       meetingId.current = item.id;
+      logInfo(`meeting ${item.id} created`);
       if (!title.trim()) setTitle(item.title);
       const info = await invoke<{ mic: string; system: string }>("meeting_capture_start");
+      logInfo(`capture started: mic="${info.mic}" system="${info.system}"`);
       setDevices(info);
       chunkIndex.current = { mic: 0, system: 0 };
       chunkStart.current = 0;
@@ -103,6 +118,7 @@ export function Notetaker({ prefs, onConsent, remainingMinutes }: Props) {
       stopTimers();
       setPhase("idle");
       const msg = e instanceof ApiError && e.code === "quota_exceeded" ? e.message : e instanceof Error ? e.message : String(e);
+      logError(`notetaker start failed: ${msg}`);
       setError(msg);
       overlay({ state: "idle" });
     }
@@ -125,11 +141,14 @@ export function Notetaker({ prefs, onConsent, remainingMinutes }: Props) {
       overlay({ state: "polishing" });
       for (let i = 0; i < 120 && pending.current > 0; i++) await new Promise((r) => setTimeout(r, 500));
       const id = meetingId.current!;
+      logInfo(`finishing meeting ${id} after ${secs.toFixed(0)}s`);
       await makeApi(prefsRef.current).meetingFinish(id, secs);
+      logInfo(`meeting ${id} notes ready`);
       setLastMeeting(id);
       overlay({ state: "done", message: "Meeting notes ready" });
       setTimeout(() => overlay({ state: "idle" }), 2500);
     } catch (e) {
+      logError(`notetaker stop failed: ${e instanceof Error ? e.message : String(e)}`);
       setError(e instanceof Error ? e.message : String(e));
       overlay({ state: "idle" });
     } finally {

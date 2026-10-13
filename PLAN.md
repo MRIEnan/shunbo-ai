@@ -119,3 +119,40 @@ AI notes in the user's account, with consent built in.
 ### Estimate
 Desktop capture and chunk upload is the hard part (new Rust code, WASAPI quirks). Roughly: server + web 1 day,
 desktop capture 1 day, notes quality + polish half a day.
+
+---
+
+## Phase 8 — Stability, onboarding, password auth, store readiness
+
+### A. Desktop fixes (issues 1 and 3)
+- Deep link bug: dev builds registered `shunbo://` to `target/debug/shunbo-desktop.exe`, hijacking sign-in from the
+  installed app and leaving a blank, un-closable window. Fix: register at runtime only in debug builds, have the
+  installer own the registration, and on sign-in success verify the token arrived in the running instance.
+- Close behaviour: window X now asks "Hide to tray or Quit?" the first time; tray and in-app Quit always exit; a
+  hung window can be force-closed via tray Quit. Add a watchdog so an unresponsive webview is restarted.
+- Diagnostics: file logging (tauri-plugin-log) at %APPDATA%/ai.shunbo.desktop/logs, an in-app "Diagnostics" panel
+  showing device names, server URL, last errors, and a "Copy logs" button. Every Notetaker step (start, device open,
+  chunk upload, finish) logs an outcome so failures are visible instead of silent.
+- Notetaker reliability: upload retry with backoff, upload the final chunk before stopping capture, surface server
+  errors (quota, auth) in the tab, and keep the recording going if one chunk fails.
+
+### B. Onboarding and permissions (issue 2)
+- First-run wizard: Welcome → Sign in → Microphone check (triggers the Windows mic prompt; detects "blocked for
+  desktop apps" and deep-links to ms-settings:privacy-microphone) → System audio check (plays a short tone, verifies
+  loopback hears it) → Shortcut test → Notetaker consent → Done. Re-runnable from Settings.
+- Explain plainly what "whole system" access means: mic + what you hear + typing into the active app.
+
+### C. Password accounts with email codes (issue 4)
+- Sign up: email + password → 6-digit code emailed (link also included) → enter code → verified.
+- Sign in: email + password. Unverified accounts are asked for the code again, with "Resend code".
+- Forgot password: "Send code" → enter code + new password. Magic link stays as a secondary "Email me a sign-in link".
+- Implementation: Auth.js Credentials provider, bcrypt password hashes, JWT sessions, hashed one-time codes with
+  10-minute expiry and attempt limits. Existing magic-link users get a "set a password" prompt.
+
+### D. Release and store
+- Version 0.3.0: GitHub release via the workflow; `/download` points at it.
+- Microsoft Store: MSIX package (makeappx + manifest with runFullTrust, protocol `shunbo`, microphone capability),
+  Partner Center submission. Store signs the package, which removes the SmartScreen warning.
+
+### Testing
+- Web flows tested with Claude in Chrome using the "irahman tester" profile; desktop flows need the user's hands.

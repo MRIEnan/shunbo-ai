@@ -5,6 +5,7 @@ use tauri::{
     tray::{TrayIconBuilder, TrayIconEvent},
     Emitter, Manager, PhysicalPosition, WindowEvent,
 };
+use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
 
 /// Name of the executable that owns the foreground window (e.g. "slack.exe"), or "" if unknown.
 #[tauri::command]
@@ -51,13 +52,70 @@ fn active_app() -> String {
 #[tauri::command]
 fn paste_from_clipboard() -> Result<(), String> {
     use enigo::{Direction, Enigo, Key, Keyboard, Settings};
-    // Give the clipboard a moment to settle and the previous key release to land.
     std::thread::sleep(std::time::Duration::from_millis(120));
     let mut enigo = Enigo::new(&Settings::default()).map_err(|e| e.to_string())?;
     enigo.key(Key::Control, Direction::Press).map_err(|e| e.to_string())?;
     enigo.key(Key::Unicode('v'), Direction::Click).map_err(|e| e.to_string())?;
     enigo.key(Key::Control, Direction::Release).map_err(|e| e.to_string())?;
     Ok(())
+}
+
+#[derive(serde::Serialize)]
+struct Diagnostics {
+    version: String,
+    debug: bool,
+    exe: String,
+    log_dir: String,
+    data_dir: String,
+    scheme_target: String,
+    log_tail: String,
+}
+
+/// Facts that help debug a broken install, shown in the app's Diagnostics panel.
+#[tauri::command]
+fn diagnostics(app: tauri::AppHandle) -> Diagnostics {
+    let log_dir = app.path().app_log_dir().map(|p| p.display().to_string()).unwrap_or_default();
+    let data_dir = app.path().app_data_dir().map(|p| p.display().to_string()).unwrap_or_default();
+    let exe = std::env::current_exe().map(|p| p.display().to_string()).unwrap_or_default();
+    let log_tail = std::fs::read_to_string(format!("{log_dir}\\shunbo.log"))
+        .map(|s| s.lines().rev().take(80).collect::<Vec<_>>().into_iter().rev().collect::<Vec<_>>().join("\n"))
+        .unwrap_or_default();
+    Diagnostics {
+        version: app.package_info().version.to_string(),
+        debug: cfg!(debug_assertions),
+        exe,
+        log_dir,
+        data_dir,
+        scheme_target: scheme_target(),
+        log_tail,
+    }
+}
+
+/// Which executable Windows will launch for `shunbo://` links.
+fn scheme_target() -> String {
+    #[cfg(windows)]
+    {
+        let out = std::process::Command::new("reg")
+            .args(["query", r"HKCU\Software\Classes\shunbo\shell\open\command", "/ve"])
+            .output();
+        if let Ok(o) = out {
+            let s = String::from_utf8_lossy(&o.stdout);
+            if let Some(line) = s.lines().find(|l| l.contains("REG_SZ")) {
+                return line.split("REG_SZ").nth(1).unwrap_or("").trim().to_string();
+            }
+        }
+        String::from("(not registered)")
+    }
+    #[cfg(not(windows))]
+    {
+        String::new()
+    }
+}
+
+#[tauri::command]
+fn quit_app(app: tauri::AppHandle) {
+    log::info!("quit requested from UI");
+    app.exit(0);
 }
 
 fn place_overlay(app: &tauri::AppHandle) {
@@ -87,12 +145,20 @@ fn show_main(app: &tauri::AppHandle) {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-            // A second launch (e.g. from a deep link) focuses the existing window; the
-            // deep-link plugin forwards the URL to the running instance.
+        .plugin(
+            tauri_plugin_log::Builder::new()
+                .level(log::LevelFilter::Info)
+                .target(tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::LogDir { file_name: Some("shunbo".into()) }))
+                .target(tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Stdout))
+                .max_file_size(2_000_000)
+                .build(),
+        )
+        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+            log::info!("second instance launched with args {args:?}; focusing existing window");
             show_main(app);
         }))
         .plugin(tauri_plugin_deep_link::init())
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_store::Builder::new().build())
@@ -101,6 +167,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             active_app,
             paste_from_clipboard,
+            diagnostics,
+            quit_app,
             capture::meeting_capture_start,
             capture::meeting_capture_pause,
             capture::meeting_capture_levels,
@@ -108,17 +176,25 @@ pub fn run() {
             capture::meeting_capture_stop
         ])
         .setup(|app| {
-            // Dev builds aren't installed, so register the scheme at runtime for the handoff to work.
-            #[cfg(any(windows, target_os = "linux"))]
-            {
+            log::info!("Shunbo {} starting ({})", app.package_info().version, if cfg!(debug_assertions) { "debug" } else { "release" });
+
+            // Only dev builds register the scheme at runtime. Release builds are registered by the
+            // installer; registering here too would hijack sign-in links from an installed copy.
+            // Opt in with SHUNBO_DEV_DEEPLINK=1 when you need the deep link to hit the dev build.
+            #[cfg(all(debug_assertions, any(windows, target_os = "linux")))]
+            if std::env::var("SHUNBO_DEV_DEEPLINK").is_ok() {
                 use tauri_plugin_deep_link::DeepLinkExt;
-                let _ = app.deep_link().register("shunbo");
+                match app.deep_link().register("shunbo") {
+                    Ok(()) => log::info!("dev build registered shunbo:// to this executable"),
+                    Err(e) => log::warn!("could not register shunbo:// scheme: {e}"),
+                }
             }
+            log::info!("shunbo:// currently opens: {}", scheme_target());
 
             place_overlay(app.handle());
 
             let open = MenuItem::with_id(app, "open", "Open Shunbo", true, None::<&str>)?;
-            let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
+            let quit = MenuItem::with_id(app, "quit", "Quit Shunbo", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&open, &quit])?;
             TrayIconBuilder::new()
                 .icon(app.default_window_icon().cloned().expect("app icon"))
@@ -127,7 +203,10 @@ pub fn run() {
                 .show_menu_on_left_click(false)
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     "open" => show_main(app),
-                    "quit" => app.exit(0),
+                    "quit" => {
+                        log::info!("quit from tray");
+                        app.exit(0)
+                    }
                     _ => {}
                 })
                 .on_tray_icon_event(|tray, event| {
@@ -140,13 +219,29 @@ pub fn run() {
             Ok(())
         })
         .on_window_event(|window, event| {
-            // Closing the main window hides it to the tray instead of quitting.
-            if window.label() == "main" {
-                if let WindowEvent::CloseRequested { api, .. } = event {
-                    api.prevent_close();
-                    let _ = window.hide();
-                    let _ = window.app_handle().emit("hidden-to-tray", ());
-                }
+            if window.label() != "main" {
+                return;
+            }
+            if let WindowEvent::CloseRequested { api, .. } = event {
+                api.prevent_close();
+                let app = window.app_handle().clone();
+                let win = window.clone();
+                // Ask every time: hide to tray (keeps the shortcut working) or quit.
+                app.dialog()
+                    .message("Keep Shunbo running in the tray so the shortcut keeps working, or quit completely?")
+                    .title("Close Shunbo")
+                    .kind(MessageDialogKind::Info)
+                    .buttons(MessageDialogButtons::OkCancelCustom("Keep in tray".into(), "Quit".into()))
+                    .show(move |keep| {
+                        if keep {
+                            log::info!("main window hidden to tray");
+                            let _ = win.hide();
+                            let _ = win.app_handle().emit("hidden-to-tray", ());
+                        } else {
+                            log::info!("quit from close dialog");
+                            win.app_handle().exit(0);
+                        }
+                    });
             }
         })
         .run(tauri::generate_context!())

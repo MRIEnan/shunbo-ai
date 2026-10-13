@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  MSIX manifest for the Microsoft Store build of Shunbo.
+  Fill the three IDENTITY_* values from Partner Center → Product management → Product identity,
+  then run scripts/build-msix.ps1. The Store signs the package on submission.
+-->
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:uap3="http://schemas.microsoft.com/appx/manifest/uap/windows10/3"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  IgnorableNamespaces="uap uap3 rescap">
+
+  <Identity Name="IDENTITY_NAME" Publisher="IDENTITY_PUBLISHER" Version="VERSION_PLACEHOLDER" ProcessorArchitecture="x64" />
+
+  <Properties>
+    <DisplayName>Shunbo</DisplayName>
+    <PublisherDisplayName>IDENTITY_PUBLISHER_DISPLAY</PublisherDisplayName>
+    <Logo>Assets\StoreLogo.png</Logo>
+    <Description>Voice dictation that types polished text into any app, plus AI meeting notes.</Description>
+  </Properties>
+
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.17763.0" MaxVersionTested="10.0.22631.0" />
+  </Dependencies>
+
+  <Resources>
+    <Resource Language="en-us" />
+  </Resources>
+
+  <Applications>
+    <Application Id="Shunbo" Executable="shunbo-desktop.exe" EntryPoint="Windows.FullTrustApplication">
+      <uap:VisualElements
+        DisplayName="Shunbo"
+        Description="Don't type, just speak. Dictation and meeting notes."
+        BackgroundColor="#034F46"
+        Square150x150Logo="Assets\Square150x150Logo.png"
+        Square44x44Logo="Assets\Square44x44Logo.png">
+        <uap:DefaultTile Wide310x150Logo="Assets\Wide310x150Logo.png" Square71x71Logo="Assets\SmallTile.png" Square310x310Logo="Assets\LargeTile.png" />
+      </uap:VisualElements>
+      <Extensions>
+        <!-- shunbo://auth?token=... sign-in handoff from the browser -->
+        <uap:Extension Category="windows.protocol">
+          <uap:Protocol Name="shunbo">
+            <uap:DisplayName>Shunbo sign-in</uap:DisplayName>
+          </uap:Protocol>
+        </uap:Extension>
+      </Extensions>
+    </Application>
+  </Applications>
+
+  <Capabilities>
+    <Capability Name="internetClient" />
+    <!-- Full-trust desktop app: needed for the global shortcut, WASAPI loopback and pasting into other apps. -->
+    <rescap:Capability Name="runFullTrust" />
+    <DeviceCapability Name="microphone" />
+  </Capabilities>
+</Package>

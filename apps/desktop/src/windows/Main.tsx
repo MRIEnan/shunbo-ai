@@ -6,12 +6,14 @@ import { register, unregister, isRegistered, type ShortcutEvent } from "@tauri-a
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { onOpenUrl, getCurrent as getCurrentDeepLink } from "@tauri-apps/plugin-deep-link";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { Mic, LogOut, ExternalLink, Loader2, Check, AlertCircle, Keyboard, RefreshCw } from "lucide-react";
+import { Mic, LogOut, ExternalLink, Loader2, Check, AlertCircle, Keyboard, RefreshCw, Power, Bug, Copy } from "lucide-react";
+import { info as logInfo, error as logError } from "@tauri-apps/plugin-log";
 import { loadPrefs, savePrefs, DEFAULT_PREFS, type Prefs, type Tone } from "@/lib/store";
 import { makeApi, ApiError, type Me, type ServerSettings } from "@/lib/api";
 import { Recorder } from "@/lib/recorder";
 import type { OverlayState } from "./Overlay";
 import { Notetaker } from "./Notetaker";
+import { Onboarding } from "./Onboarding";
 
 const TONES: { value: Tone; label: string }[] = [
   { value: "formal", label: "Formal" },
@@ -43,6 +45,8 @@ export function MainWindow() {
   const [shortcutDraft, setShortcutDraft] = useState(DEFAULT_PREFS.shortcut);
   const [shortcutOk, setShortcutOk] = useState<boolean | null>(null);
   const [tab, setTab] = useState<"dictate" | "notetaker">("dictate");
+  const [diag, setDiag] = useState<null | { version: string; debug: boolean; exe: string; log_dir: string; data_dir: string; scheme_target: string; log_tail: string }>(null);
+  const [diagCopied, setDiagCopied] = useState(false);
 
   const prefsRef = useRef(prefs);
   const serverRef = useRef(server);
@@ -73,6 +77,7 @@ export function MainWindow() {
         setMe(null);
         setStatus({ kind: "err", text: "Your sign-in expired. Please sign in again." });
       } else {
+        logError(`refreshAccount failed against ${p.apiUrl}: ${e instanceof Error ? e.message : String(e)}`);
         setStatus({ kind: "err", text: `Can't reach ${p.apiUrl}. Is the server running?` });
       }
     }
@@ -80,6 +85,7 @@ export function MainWindow() {
 
   const applyToken = useCallback(
     async (token: string) => {
+      logInfo("sign-in token received via deep link");
       const next = await savePrefs({ token: token.trim() });
       setPrefs(next);
       setStatus({ kind: "info", text: "Connecting…" });
@@ -242,9 +248,21 @@ export function MainWindow() {
 
   if (!loaded) {
     return (
-      <div className="flex h-full items-center justify-center text-ink/50">
+      <div className="flex h-full items-center justify-center text-ink/60">
         <Loader2 className="size-6 animate-spin" />
       </div>
+    );
+  }
+
+  if (!prefs.onboarded) {
+    return (
+      <Onboarding
+        prefs={prefs}
+        signedIn={!!me}
+        lastDictation={last}
+        onUpdate={update}
+        onFinish={() => update({ onboarded: true })}
+      />
     );
   }
 
@@ -254,16 +272,56 @@ export function MainWindow() {
         <div className="flex items-center gap-2 text-lg font-semibold">
           <Mic className="size-5" /> Shunbo
         </div>
-        {me ? (
-          <div className="flex items-center gap-3 text-sm">
-            <span className="text-ink/60">{me.user.email}</span>
-            <span className="rounded-pill bg-ink px-2.5 py-1 text-xs text-cream">{me.plan.name}</span>
-            <button type="button" onClick={signOut} className="inline-flex items-center gap-1 rounded-pill border border-ink/15 px-3 py-1.5 text-xs">
-              <LogOut className="size-3.5" /> Sign out
+        <div className="flex items-center gap-2 text-sm">
+          {me && (
+            <>
+              <span className="text-ink/60">{me.user.email}</span>
+              <span className="rounded-pill bg-ink px-2.5 py-1 text-xs text-cream">{me.plan.name}</span>
+              <button type="button" onClick={signOut} className="inline-flex items-center gap-1 rounded-pill border border-ink/15 px-3 py-1.5 text-xs">
+                <LogOut className="size-3.5" /> Sign out
+              </button>
+            </>
+          )}
+          <button type="button" title="Diagnostics" onClick={async () => setDiag(diag ? null : await invoke("diagnostics"))} className="inline-flex items-center gap-1 rounded-pill border border-ink/15 px-3 py-1.5 text-xs">
+            <Bug className="size-3.5" /> {diag ? "Hide" : "Diagnostics"}
+          </button>
+          <button type="button" title="Quit Shunbo completely" onClick={() => invoke("quit_app")} className="inline-flex items-center gap-1 rounded-pill border border-ink/15 px-3 py-1.5 text-xs text-coral">
+            <Power className="size-3.5" /> Quit
+          </button>
+        </div>
+      </header>
+
+      {diag && (
+        <section className="rounded-3xl border border-ink/10 bg-cream-2 p-5 text-xs">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-medium">Diagnostics</h2>
+            <button
+              type="button"
+              onClick={async () => {
+                await writeText([`Shunbo ${diag.version} (${diag.debug ? "debug" : "release"})`, `exe: ${diag.exe}`, `server: ${prefs.apiUrl}`, `signed in: ${!!prefs.token} ${prefs.email ?? ""}`, `shunbo:// opens: ${diag.scheme_target}`, `logs: ${diag.log_dir}`, "", diag.log_tail].join("\n"));
+                setDiagCopied(true);
+                setTimeout(() => setDiagCopied(false), 1500);
+              }}
+              className="inline-flex items-center gap-1 rounded-pill border border-ink/15 px-3 py-1 text-xs"
+            >
+              {diagCopied ? <Check className="size-3 text-forest" /> : <Copy className="size-3" />} {diagCopied ? "Copied" : "Copy report"}
             </button>
           </div>
-        ) : null}
-      </header>
+          <dl className="mt-3 grid grid-cols-[8rem_1fr] gap-y-1 break-all">
+            <dt className="text-ink/60">Version</dt><dd>{diag.version} ({diag.debug ? "debug" : "release"})</dd>
+            <dt className="text-ink/60">Executable</dt><dd>{diag.exe}</dd>
+            <dt className="text-ink/60">Server</dt><dd>{prefs.apiUrl}</dd>
+            <dt className="text-ink/60">Signed in</dt><dd>{prefs.token ? `yes (${prefs.email ?? "…"})` : "no"}</dd>
+            <dt className="text-ink/60">shunbo:// opens</dt><dd className={diag.scheme_target.toLowerCase().includes(diag.exe.toLowerCase()) ? "text-forest" : "text-coral"}>{diag.scheme_target}</dd>
+            <dt className="text-ink/60">Log folder</dt><dd>{diag.log_dir}</dd>
+          </dl>
+          {!diag.scheme_target.toLowerCase().includes(diag.exe.toLowerCase()) && (
+            <p className="mt-3 rounded-lg bg-coral/10 p-2 text-coral">Sign-in links open a different program than this one. Reinstall Shunbo to fix the registration.</p>
+          )}
+          <button type="button" onClick={() => update({ onboarded: false })} className="mt-3 rounded-pill border border-ink/15 px-3 py-1 text-xs">Run setup again</button>
+          <pre className="mt-3 max-h-48 overflow-auto rounded-xl bg-ink p-3 font-mono text-[10px] leading-relaxed text-cream/90 whitespace-pre-wrap">{diag.log_tail || "(no log entries yet)"}</pre>
+        </section>
+      )}
 
       {status && (
         <p className={`flex items-center gap-2 rounded-xl p-3 text-sm ${status.kind === "err" ? "bg-coral/10 text-coral" : status.kind === "ok" ? "bg-mint/20 text-forest" : "bg-lavender"}`}>
@@ -380,7 +438,7 @@ export function MainWindow() {
           </section>
         </>
       )}
-      <p className="text-center text-[11px] text-ink/40">Closing this window keeps Shunbo running in the tray.</p>
+      <p className="text-center text-[11px] text-ink/40">Closing this window asks whether to keep Shunbo in the tray or quit.</p>
     </div>
   );
 }

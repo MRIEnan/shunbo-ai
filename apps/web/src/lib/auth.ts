@@ -1,20 +1,11 @@
-import NextAuth from "next-auth";
+import NextAuth, { CredentialsSignin } from "next-auth";
+import Credentials from "next-auth/providers/credentials";
 import Nodemailer from "next-auth/providers/nodemailer";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { createTransport } from "nodemailer";
+import { compare } from "bcryptjs";
 import { prisma } from "@/lib/prisma";
-
-const smtpPort = Number(process.env.SMTP_PORT ?? 465);
-const smtp = {
-  host: process.env.SMTP_HOST ?? "smtp.gmail.com",
-  port: smtpPort,
-  // Implicit TLS only on 465; 587 and 25 use STARTTLS (secure: false). Ignore SMTP_SECURE when it contradicts the port.
-  secure: smtpPort === 465,
-  auth: {
-    user: process.env.GMAIL_USER ?? "",
-    pass: process.env.GMAIL_APP_PASSWORD ?? "",
-  },
-};
+import { smtpConfig, mailFrom } from "@/lib/codes";
 
 function magicLinkHtml(url: string, host: string) {
   return `<!doctype html><html><body style="margin:0;background:#ffffeb;font-family:Figtree,Arial,sans-serif;color:#1a1a1a">
@@ -29,14 +20,38 @@ function magicLinkHtml(url: string, host: string) {
   </td></tr></table></body></html>`;
 }
 
+/** Surfaced to the client as `result.code` so the form can react (e.g. send to /verify). */
+export class SignInError extends CredentialsSignin {
+  constructor(code: "invalid" | "unverified" | "no_password") {
+    super(code);
+    this.code = code;
+  }
+}
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: PrismaAdapter(prisma),
-  session: { strategy: "database" },
+  // JWT sessions: required for the Credentials provider; the adapter still stores users/accounts.
+  session: { strategy: "jwt", maxAge: 30 * 24 * 60 * 60 },
   pages: { signIn: "/signin", verifyRequest: "/signin/check-email", error: "/signin" },
   providers: [
+    Credentials({
+      credentials: { email: {}, password: {} },
+      async authorize(creds) {
+        const email = String(creds?.email ?? "").trim().toLowerCase();
+        const password = String(creds?.password ?? "");
+        if (!email || !password) return null;
+        const user = await prisma.user.findUnique({ where: { email } });
+        if (!user) throw new SignInError("invalid");
+        if (!user.passwordHash) throw new SignInError("no_password");
+        const ok = await compare(password, user.passwordHash);
+        if (!ok) throw new SignInError("invalid");
+        if (!user.emailVerified) throw new SignInError("unverified");
+        return { id: user.id, email: user.email, name: user.name, image: user.image };
+      },
+    }),
     Nodemailer({
-      server: smtp,
-      from: process.env.SMTP_FROM ?? process.env.GMAIL_USER,
+      server: smtpConfig(),
+      from: mailFrom(),
       maxAge: 24 * 60 * 60,
       async sendVerificationRequest({ identifier, url, provider }) {
         const { host } = new URL(url);
@@ -54,8 +69,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     }),
   ],
   callbacks: {
-    session({ session, user }) {
-      session.user.id = user.id;
+    async jwt({ token, user }) {
+      if (user?.id) token.sub = user.id;
+      return token;
+    },
+    async session({ session, token }) {
+      if (token.sub) session.user.id = token.sub;
       return session;
     },
   },

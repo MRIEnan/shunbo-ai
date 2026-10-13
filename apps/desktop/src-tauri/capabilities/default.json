@@ -2,7 +2,10 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Capabilities for the Shunbo main and overlay windows",
-  "windows": ["main", "overlay"],
+  "windows": [
+    "main",
+    "overlay"
+  ],
   "permissions": [
     "core:default",
     "core:event:default",
@@ -16,6 +19,12 @@
     "clipboard-manager:allow-write-text",
     "store:default",
     "deep-link:default",
-    "opener:allow-open-url"
+    "opener:allow-open-url",
+    "log:default",
+    "dialog:allow-ask",
+    "dialog:allow-message",
+    "core:app:allow-version",
+    "core:window:allow-close",
+    "core:window:allow-destroy"
   ]
 }

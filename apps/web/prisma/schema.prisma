@@ -15,6 +15,7 @@ model User {
   email         String    @unique
   emailVerified DateTime?
   image         String?
+  passwordHash  String?
   role          Role      @default(user)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
@@ -65,6 +66,19 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
+}
+
+/// One-time 6-digit codes for sign-up verification and password reset. Only the hash is stored.
+model EmailCode {
+  id        String   @id @default(cuid())
+  email     String
+  purpose   String   // verify | reset
+  codeHash  String
+  attempts  Int      @default(0)
+  expires   DateTime
+  createdAt DateTime @default(now())
+
+  @@index([email, purpose])
 }
 
 enum Role {

@@ -85,6 +85,26 @@ Code signing is not configured; Windows SmartScreen will warn until you sign the
 `.github/workflows/ci.yml` lints, type-checks, migrates a scratch Postgres and builds the web app on Ubuntu,
 and type-checks plus `cargo check`s the desktop app on Windows.
 
+## Phase 8 status (stability, onboarding, password auth, Store prep)
+
+- **Accounts**: sign up with email + password → 6-digit emailed code (`/signup`, `/verify`); sign in with password
+  (`/signin`); forgot/reset by code (`/forgot`, `/reset`); magic link kept as "Email me a sign-in link".
+  Sessions are JWT (required by the Credentials provider). Codes are hashed, expire in 10 min, 5 attempts, 45 s
+  resend cooldown. In development the code is also printed to the server console (`[dev] verify code for …`).
+- **Desktop deep-link bug fixed**: dev builds no longer register `shunbo://` unless `SHUNBO_DEV_DEEPLINK=1` is set,
+  so an installed copy can't be hijacked by a debug build. If sign-in ever opens the wrong program, delete
+  `HKCU\Software\Classes\shunbo` and reinstall. The Diagnostics panel shows which executable the link opens.
+- **Closing the window** now asks "Keep in tray" or "Quit"; the tray menu and the Quit button always exit.
+- **Logging and diagnostics**: `%LOCALAPPDATA%i.shunbo.desktop\logs\shunbo.log`; Diagnostics panel with
+  "Copy report". Notetaker chunk uploads retry three times and log each outcome.
+- **Onboarding wizard** on first run: sign-in, microphone check (links to Windows privacy settings when blocked),
+  system-audio check (plays a tone and verifies loopback), shortcut test, Notetaker consent. Re-run from Diagnostics.
+- **Microsoft Store**: `apps/desktop/msix/AppxManifest.xml` + `scripts/build-msix.ps1` build an MSIX with
+  `runFullTrust`, the `shunbo` protocol and the microphone capability. Needs the Windows 10/11 SDK (makeappx).
+  Steps: register at https://partner.microsoft.com (one-time $19 for individuals) → reserve the name "Shunbo" →
+  copy Package identity name / Publisher / Publisher display name → run the script → upload the `.msix` in a new
+  submission. The Store signs it, which removes the SmartScreen warning.
+
 ## Phase 7 status (Notetaker)
 
 Meeting recording with speaker-labelled transcripts and AI notes.

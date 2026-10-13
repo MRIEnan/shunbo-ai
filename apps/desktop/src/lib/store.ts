@@ -11,6 +11,7 @@ export type Prefs = {
   shortcut: string;
   pasteMode: "paste" | "clipboard"; // paste = Ctrl+V into active app; clipboard = copy only
   notetakerConsent: boolean;
+  onboarded: boolean;
 };
 
 export const DEFAULT_PREFS: Prefs = {
@@ -22,6 +23,7 @@ export const DEFAULT_PREFS: Prefs = {
   shortcut: "CommandOrControl+Shift+Space",
   pasteMode: "paste",
   notetakerConsent: false,
+  onboarded: false,
 };
 
 const store = new LazyStore("prefs.json");
