@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { readdirSync, statSync } from "node:fs";
+import { join } from "node:path";
 import { Download, Keyboard, Monitor, ShieldCheck } from "lucide-react";
 import { AnnouncementBar, Nav } from "@/components/site/Nav";
 import { Footer } from "@/components/site/Footer";
@@ -16,8 +18,28 @@ const STEPS = [
   { icon: Keyboard, title: "Hold Ctrl + Shift + Space", body: "Put your cursor anywhere, hold the shortcut, talk, and let go. The polished text is pasted where you were typing." },
 ];
 
+export const dynamic = "force-dynamic";
+
+/** NEXT_PUBLIC_DOWNLOAD_URL wins; otherwise serve the newest installer dropped into public/downloads. */
+function resolveDownload(): { url: string; file?: string; size?: string } | null {
+  if (process.env.NEXT_PUBLIC_DOWNLOAD_URL) return { url: process.env.NEXT_PUBLIC_DOWNLOAD_URL };
+  try {
+    const dir = join(process.cwd(), "public", "downloads");
+    const exes = readdirSync(dir)
+      .filter((f) => f.toLowerCase().endsWith(".exe"))
+      .map((f) => ({ f, st: statSync(join(dir, f)) }))
+      .sort((a, b) => b.st.mtimeMs - a.st.mtimeMs);
+    if (!exes.length) return null;
+    const { f, st } = exes[0];
+    return { url: `/downloads/${encodeURIComponent(f)}`, file: f, size: `${(st.size / 1024 / 1024).toFixed(1)} MB` };
+  } catch {
+    return null;
+  }
+}
+
 export default function DownloadPage() {
-  const url = process.env.NEXT_PUBLIC_DOWNLOAD_URL;
+  const dl = resolveDownload();
+  const url = dl?.url;
   return (
     <>
       <AnnouncementBar />
@@ -38,7 +60,7 @@ export default function DownloadPage() {
                   href={url}
                   className="inline-flex h-13 items-center gap-2 rounded-pill border border-ink/80 bg-lavender px-7 text-base font-medium shadow-[0_2px_0_0_rgba(26,26,26,0.8)] transition-all hover:-translate-y-0.5"
                 >
-                  <Download className="size-5" /> Download for Windows
+                  <Download className="size-5" /> Download for Windows{dl?.size ? ` (${dl.size})` : ""}
                 </a>
               ) : (
                 <span className="inline-flex h-13 items-center gap-2 rounded-pill border border-ink/20 px-7 text-base text-ink/60">

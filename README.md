@@ -100,8 +100,12 @@ and type-checks plus `cargo check`s the desktop app on Windows.
 
 Prerequisites on Windows: Rust (rustup), Visual Studio Build Tools with the C++ workload, WebView2 (built into Windows 11).
 In dev the webview is served by Vite on `http://localhost:1420`, which the API's CORS layer allows only when
-`NODE_ENV` is not production. Set `NEXT_PUBLIC_DOWNLOAD_URL` on the web app to the installer URL to enable the
-button on `/download`.
+`NODE_ENV` is not production. The `/download` button uses `NEXT_PUBLIC_DOWNLOAD_URL` when set; otherwise it serves the newest
+installer found in `apps/web/public/downloads/` (gitignored). To refresh it locally after a desktop change:
+
+```bash
+npm run desktop:publish-local
+```
 
 ```bash
 cd apps/desktop
