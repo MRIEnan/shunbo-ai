@@ -65,7 +65,7 @@ cd apps/web && npx prisma db push
 1. Create a Postgres database (Neon, Supabase, or Vercel Postgres) and copy its connection string.
 2. Import the repo in Vercel. `vercel.json` at the root sets the monorepo build (`npm run build -w web`).
 3. Add every variable from `apps/web/.env.example` in Vercel → Settings → Environment Variables.
-   Set `NEXT_PUBLIC_APP_URL` to the production domain and `NODE_ENV` is set by Vercel.
+   Set `NEXT_PUBLIC_APP_URL` to `https://shunboai.com` and `NODE_ENV` is set by Vercel.
 4. Run the schema migrations once against production: `cd apps/web && DATABASE_URL=... npx prisma migrate deploy`
    (CI does the same against its throwaway database on every push).
 5. Stripe → Developers → Webhooks → add endpoint `https://<domain>/api/stripe/webhook` with events

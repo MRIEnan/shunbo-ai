@@ -32,8 +32,8 @@ export function Footer() {
         <div className="mt-14 flex flex-col gap-3 border-t border-ink/10 pt-6 text-xs text-ink/60 sm:flex-row sm:items-center sm:justify-between">
           <p>© {new Date().getFullYear()} Shunbo AI. All rights reserved.</p>
           <div className="flex flex-wrap gap-4">
-            {["Terms", "Privacy", "Data controls", "Do not sell or share my personal information"].map((l) => (
-              <Link key={l} href="#" className="hover:text-ink transition-colors">
+            {[["Terms", "/terms"], ["Privacy", "/privacy"], ["Data controls", "/privacy#5-retention-and-deletion"]].map(([l, href]) => (
+              <Link key={l} href={href} className="hover:text-ink transition-colors">
                 {l}
               </Link>
             ))}

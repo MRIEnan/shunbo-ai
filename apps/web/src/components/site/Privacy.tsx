@@ -28,7 +28,7 @@ export function Privacy() {
                 ))}
               </div>
             </div>
-            <Button href="#privacy" variant="outline">
+            <Button href="/privacy" variant="outline">
               Learn more
             </Button>
           </div>

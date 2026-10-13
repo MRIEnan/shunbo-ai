@@ -75,7 +75,7 @@ export function PlanCards({ plans, currentPlan, signedIn, compact }: Props) {
               </ul>
               <div className="mt-7 flex-1" />
               {p.cta === "contact" ? (
-                <Link href="mailto:sales@shunbo.ai" className={cn("inline-flex h-11 items-center justify-center rounded-pill border text-sm font-medium", highlight ? "border-cream/30" : "border-ink/20")}>
+                <Link href="mailto:enan.mainur@gmail.com?subject=Shunbo%20Business%20plan" className={cn("inline-flex h-11 items-center justify-center rounded-pill border text-sm font-medium", highlight ? "border-cream/30" : "border-ink/20")}>
                   Talk to sales
                 </Link>
               ) : isCurrent ? (

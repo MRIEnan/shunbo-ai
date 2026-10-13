@@ -27,7 +27,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Production API the installed app talks to. Set in repo → Settings → Variables.
-          VITE_API_URL: ${{ vars.PUBLIC_APP_URL || 'https://shunbo.ai' }}
+          VITE_API_URL: ${{ vars.PUBLIC_APP_URL || 'https://shunboai.com' }}
         with:
           projectPath: apps/desktop
           tagName: ${{ github.ref_name }}
