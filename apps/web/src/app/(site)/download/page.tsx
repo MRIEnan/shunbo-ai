@@ -3,8 +3,6 @@ import Link from "next/link";
 import { readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { Download, Keyboard, Monitor, ShieldCheck } from "lucide-react";
-import { AnnouncementBar, Nav } from "@/components/site/Nav";
-import { Footer } from "@/components/site/Footer";
 import { Container } from "@/components/ui/Container";
 
 export const metadata: Metadata = {
@@ -42,8 +40,6 @@ export default function DownloadPage() {
   const url = dl?.url;
   return (
     <>
-      <AnnouncementBar />
-      <Nav />
       <main className="py-16 sm:py-24">
         <Container>
           <div className="mx-auto max-w-2xl text-center">
@@ -96,7 +92,6 @@ export default function DownloadPage() {
           </p>
         </Container>
       </main>
-      <Footer />
     </>
   );
 }

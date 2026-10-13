@@ -1,8 +1,6 @@
 import type { Metadata } from "next";
 import { auth } from "@/lib/auth";
 import { getPlans, getEntitlement } from "@/lib/billing";
-import { AnnouncementBar, Nav } from "@/components/site/Nav";
-import { Footer } from "@/components/site/Footer";
 import { Container } from "@/components/ui/Container";
 import { PlanCards } from "@/components/billing/PlanCards";
 
@@ -17,8 +15,6 @@ export default async function PricingPage({ searchParams }: { searchParams: Prom
 
   return (
     <>
-      <AnnouncementBar />
-      <Nav />
       <main className="py-16 sm:py-24">
         <Container>
           <div className="mx-auto max-w-2xl text-center">
@@ -41,7 +37,6 @@ export default async function PricingPage({ searchParams }: { searchParams: Prom
           </p>
         </Container>
       </main>
-      <Footer />
     </>
   );
 }

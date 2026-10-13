@@ -1,8 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Mic, MonitorUp, ListChecks, ShieldCheck, Globe, Monitor } from "lucide-react";
-import { AnnouncementBar, Nav } from "@/components/site/Nav";
-import { Footer } from "@/components/site/Footer";
 import { Container } from "@/components/ui/Container";
 import { Button } from "@/components/ui/Button";
 import { Reveal } from "@/components/ui/Reveal";
@@ -29,8 +27,6 @@ const SAMPLE = [
 export default function NotetakerPage() {
   return (
     <>
-      <AnnouncementBar />
-      <Nav />
       <main>
         <section className="pt-20 pb-16 sm:pt-28 sm:pb-24">
           <Container>
@@ -102,7 +98,6 @@ export default function NotetakerPage() {
           </Container>
         </section>
       </main>
-      <Footer />
     </>
   );
 }

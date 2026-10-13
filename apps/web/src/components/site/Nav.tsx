@@ -61,11 +61,18 @@ export function Nav() {
                   href={m === "dictation" ? "/" : "/notetaker"}
                   aria-current={mode === m ? "page" : undefined}
                   className={cn(
-                    "rounded-pill border px-3.5 py-1.5 capitalize transition-colors duration-150",
-                    mode === m ? "border-ink/15 bg-cream text-ink shadow-sm" : "border-transparent text-muted hover:text-ink",
+                    "relative rounded-pill px-3.5 py-1.5 capitalize transition-colors",
+                    mode === m ? "text-ink" : "text-muted hover:text-ink",
                   )}
                 >
-                  {m}
+                  {mode === m && (
+                    <motion.span
+                      layoutId="nav-toggle"
+                      className="absolute inset-0 rounded-pill bg-cream border border-ink/15 shadow-sm"
+                      transition={{ type: "spring", stiffness: 400, damping: 32 }}
+                    />
+                  )}
+                  <span className="relative">{m}</span>
                 </Link>
               ))}
             </div>
