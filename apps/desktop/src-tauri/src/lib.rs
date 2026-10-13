@@ -1,3 +1,5 @@
+mod capture;
+
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{TrayIconBuilder, TrayIconEvent},
@@ -95,7 +97,16 @@ pub fn run() {
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![active_app, paste_from_clipboard])
+        .manage(capture::CaptureState::default())
+        .invoke_handler(tauri::generate_handler![
+            active_app,
+            paste_from_clipboard,
+            capture::meeting_capture_start,
+            capture::meeting_capture_pause,
+            capture::meeting_capture_levels,
+            capture::meeting_capture_take,
+            capture::meeting_capture_stop
+        ])
         .setup(|app| {
             // Dev builds aren't installed, so register the scheme at runtime for the handoff to work.
             #[cfg(any(windows, target_os = "linux"))]

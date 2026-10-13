@@ -8,6 +8,7 @@ export type PlanDTO = {
   priceMonthlyCents: number;
   currency: string;
   wordsPerWeek: number | null;
+  meetingMinutesPerMonth: number | null;
   features: string[];
   cta: "checkout" | "contact" | "free";
   active: boolean;
@@ -24,7 +25,8 @@ export const DEFAULT_PLANS: Omit<PlanDTO, "stripeProductId" | "stripePriceId">[]
     priceMonthlyCents: 0,
     currency: "usd",
     wordsPerWeek: 2000,
-    features: ["2,000 words per week", "Web and desktop dictation", "100+ languages", "Vocabulary and snippets"],
+    meetingMinutesPerMonth: 60,
+    features: ["2,000 words per week", "60 meeting minutes per month", "Web and desktop dictation", "100+ languages", "Vocabulary and snippets"],
     cta: "free",
     active: true,
     sortOrder: 0,
@@ -36,7 +38,8 @@ export const DEFAULT_PLANS: Omit<PlanDTO, "stripeProductId" | "stripePriceId">[]
     priceMonthlyCents: 1200,
     currency: "usd",
     wordsPerWeek: null,
-    features: ["Unlimited words", "Everything in Free", "Style presets per app", "Priority processing", "Notetaker (coming soon)"],
+    meetingMinutesPerMonth: null,
+    features: ["Unlimited words", "Unlimited meeting minutes", "Everything in Free", "Style presets per app", "Priority processing"],
     cta: "checkout",
     active: true,
     sortOrder: 1,
@@ -48,6 +51,7 @@ export const DEFAULT_PLANS: Omit<PlanDTO, "stripeProductId" | "stripePriceId">[]
     priceMonthlyCents: 0,
     currency: "usd",
     wordsPerWeek: null,
+    meetingMinutesPerMonth: null,
     features: ["Everything in Pro", "Centralized billing", "Shared team vocabulary", "Admin controls and SSO", "Dedicated support"],
     cta: "contact",
     active: true,
@@ -62,6 +66,7 @@ export const toPlanDTO = (p: PlanConfig): PlanDTO => ({
   priceMonthlyCents: p.priceMonthlyCents,
   currency: p.currency,
   wordsPerWeek: p.wordsPerWeek,
+  meetingMinutesPerMonth: p.meetingMinutesPerMonth,
   features: p.features,
   cta: (["checkout", "contact", "free"].includes(p.cta) ? p.cta : "checkout") as PlanDTO["cta"],
   active: p.active,
@@ -98,10 +103,23 @@ export function startOfWeek(d = new Date()) {
 
 export async function getWeeklyUsage(userId: string) {
   const agg = await prisma.usageRecord.aggregate({
-    where: { userId, createdAt: { gte: startOfWeek() } },
+    where: { userId, kind: "dictation", createdAt: { gte: startOfWeek() } },
     _sum: { words: true },
   });
   return agg._sum.words ?? 0;
+}
+
+export function startOfMonth(d = new Date()) {
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1));
+}
+
+/** Meeting minutes recorded this calendar month (UTC). */
+export async function getMonthlyMeetingMinutes(userId: string) {
+  const agg = await prisma.usageRecord.aggregate({
+    where: { userId, kind: "meeting", createdAt: { gte: startOfMonth() } },
+    _sum: { seconds: true },
+  });
+  return Math.round((agg._sum.seconds ?? 0) / 60);
 }
 
 export type Entitlement = {
@@ -114,13 +132,17 @@ export type Entitlement = {
   cancelAtPeriodEnd: boolean;
   currentPeriodEnd: number | null;
   hasStripeCustomer: boolean;
+  meetingMinutesUsed: number;
+  meetingMinutesLimit: number | null;
+  meetingOverLimit: boolean;
 };
 
 export async function getEntitlement(userId: string): Promise<Entitlement> {
-  const [sub, plans, used] = await Promise.all([
+  const [sub, plans, used, meetingMinutesUsed] = await Promise.all([
     prisma.subscription.findUnique({ where: { userId } }),
     getPlans(true),
     getWeeklyUsage(userId),
+    getMonthlyMeetingMinutes(userId),
   ]);
   const activeStatuses = ["active", "trialing", "past_due"];
   const slug = sub && activeStatuses.includes(sub.status) ? sub.plan : "free";
@@ -141,5 +163,8 @@ export async function getEntitlement(userId: string): Promise<Entitlement> {
     cancelAtPeriodEnd: sub?.cancelAtPeriodEnd ?? false,
     currentPeriodEnd: sub?.currentPeriodEnd?.getTime() ?? null,
     hasStripeCustomer: !!sub?.stripeCustomerId,
+    meetingMinutesUsed,
+    meetingMinutesLimit: plan.meetingMinutesPerMonth,
+    meetingOverLimit: plan.meetingMinutesPerMonth !== null && meetingMinutesUsed >= plan.meetingMinutesPerMonth,
   };
 }

@@ -29,6 +29,7 @@ model User {
   subscription Subscription?
   usage        UsageRecord[]
   apiTokens    ApiToken[]
+  meetings     Meeting[]
 }
 
 model Account {
@@ -87,6 +88,7 @@ model PlanConfig {
   sortOrder         Int      @default(0)
   stripeProductId   String?
   stripePriceId     String?
+  meetingMinutesPerMonth Int? // null = unlimited; Notetaker allowance
   updatedAt         DateTime @updatedAt
 }
 
@@ -184,9 +186,73 @@ model ApiToken {
 model UsageRecord {
   id        String   @id @default(cuid())
   userId    String
-  words     Int
+  words     Int      @default(0)
+  seconds   Int      @default(0) // meeting audio seconds (Notetaker)
+  kind      String   @default("dictation") // dictation | meeting
   createdAt DateTime @default(now())
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
+}
+
+// ---------- Notetaker ----------
+
+model Meeting {
+  id          String   @id @default(cuid())
+  userId      String
+  title       String
+  status      String   @default("recording") // recording | processing | done | failed
+  source      String   @default("desktop")   // desktop | web
+  language    String?
+  diarize     Boolean  @default(true)
+  durationSec Float    @default(0)
+  error       String?
+  startedAt   DateTime @default(now())
+  endedAt     DateTime?
+  createdAt   DateTime @default(now())
+
+  user     User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chunks   MeetingChunk[]
+  segments MeetingSegment[]
+  notes    MeetingNotes?
+
+  @@index([userId, startedAt(sort: Desc)])
+}
+
+model MeetingChunk {
+  id          String   @id @default(cuid())
+  meetingId   String
+  index       Int
+  track       String   // mic | system
+  durationSec Float    @default(0)
+  status      String   @default("pending") // pending | done | failed
+  error       String?
+  createdAt   DateTime @default(now())
+  meeting     Meeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+
+  @@unique([meetingId, index, track])
+}
+
+model MeetingSegment {
+  id         String  @id @default(cuid())
+  meetingId  String
+  chunkIndex Int
+  track      String
+  speaker    String  // "You", "Speaker 1", ...
+  startSec   Float
+  endSec     Float
+  text       String
+  meeting    Meeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+
+  @@index([meetingId, startSec])
+}
+
+model MeetingNotes {
+  meetingId   String   @id
+  summary     String
+  actionItems String[] @default([])
+  decisions   String[] @default([])
+  questions   String[] @default([])
+  generatedAt DateTime @default(now())
+  meeting     Meeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
 }

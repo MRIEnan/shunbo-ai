@@ -21,6 +21,7 @@ export async function PUT(req: Request) {
   const name = typeof b.name === "string" && b.name.trim() ? b.name.trim().slice(0, 60) : slug;
   const priceMonthlyCents = Number.isInteger(b.priceMonthlyCents) && b.priceMonthlyCents >= 0 ? b.priceMonthlyCents : 0;
   const wordsPerWeek = b.wordsPerWeek === null || b.wordsPerWeek === "" ? null : Number.isInteger(b.wordsPerWeek) && b.wordsPerWeek > 0 ? b.wordsPerWeek : undefined;
+  const meetingMinutesPerMonth = b.meetingMinutesPerMonth === null || b.meetingMinutesPerMonth === "" ? null : Number.isInteger(b.meetingMinutesPerMonth) && b.meetingMinutesPerMonth >= 0 ? b.meetingMinutesPerMonth : undefined;
   const features = Array.isArray(b.features) ? b.features.filter((f: unknown): f is string => typeof f === "string").map((f: string) => f.trim()).filter(Boolean).slice(0, 12) : undefined;
   const cta = ["checkout", "contact", "free"].includes(b.cta) ? b.cta : undefined;
   const data = {
@@ -28,6 +29,7 @@ export async function PUT(req: Request) {
     description: typeof b.description === "string" ? b.description.slice(0, 200) : undefined,
     priceMonthlyCents,
     wordsPerWeek,
+    meetingMinutesPerMonth,
     features,
     cta,
     active: typeof b.active === "boolean" ? b.active : undefined,
@@ -35,7 +37,7 @@ export async function PUT(req: Request) {
   };
   const p = await prisma.planConfig.upsert({
     where: { slug },
-    create: { slug, ...data, features: features ?? [], cta: cta ?? "checkout", wordsPerWeek: wordsPerWeek ?? null },
+    create: { slug, ...data, features: features ?? [], cta: cta ?? "checkout", wordsPerWeek: wordsPerWeek ?? null, meetingMinutesPerMonth: meetingMinutesPerMonth ?? null },
     update: data,
   });
   const needsSync = p.cta === "checkout" && p.priceMonthlyCents > 0 && !p.stripePriceId;

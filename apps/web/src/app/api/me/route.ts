@@ -15,5 +15,7 @@ export async function GET() {
     used: e.used,
     limit: e.limit,
     overLimit: e.overLimit,
+    meetingMinutesUsed: e.meetingMinutesUsed,
+    meetingMinutesLimit: e.meetingMinutesLimit,
   });
 }

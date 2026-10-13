@@ -11,6 +11,7 @@ import { loadPrefs, savePrefs, DEFAULT_PREFS, type Prefs, type Tone } from "@/li
 import { makeApi, ApiError, type Me, type ServerSettings } from "@/lib/api";
 import { Recorder } from "@/lib/recorder";
 import type { OverlayState } from "./Overlay";
+import { Notetaker } from "./Notetaker";
 
 const TONES: { value: Tone; label: string }[] = [
   { value: "formal", label: "Formal" },
@@ -41,6 +42,7 @@ export function MainWindow() {
   const [manualToken, setManualToken] = useState("");
   const [shortcutDraft, setShortcutDraft] = useState(DEFAULT_PREFS.shortcut);
   const [shortcutOk, setShortcutOk] = useState<boolean | null>(null);
+  const [tab, setTab] = useState<"dictate" | "notetaker">("dictate");
 
   const prefsRef = useRef(prefs);
   const serverRef = useRef(server);
@@ -270,7 +272,23 @@ export function MainWindow() {
         </p>
       )}
 
-      {!me ? (
+      {me && (
+        <div className="inline-flex self-start rounded-pill border border-ink/15 bg-cream-2 p-1 text-sm">
+          {(["dictate", "notetaker"] as const).map((t) => (
+            <button key={t} type="button" onClick={() => setTab(t)} className={`rounded-pill px-4 py-1.5 capitalize ${tab === t ? "bg-ink text-cream" : "text-ink/60"}`}>
+              {t === "dictate" ? "Dictate" : "Notetaker"}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {me && tab === "notetaker" ? (
+        <Notetaker
+          prefs={prefs}
+          onConsent={() => update({ notetakerConsent: true })}
+          remainingMinutes={me.meetingMinutesLimit === null ? null : Math.max(0, me.meetingMinutesLimit - me.meetingMinutesUsed)}
+        />
+      ) : !me ? (
         <section className="rounded-3xl border border-ink/10 bg-cream-2 p-6">
           <h1 className="display text-3xl">Sign in to start dictating</h1>
           <p className="mt-2 text-sm text-ink/65">We&rsquo;ll open your browser to connect this computer to your Shunbo account.</p>

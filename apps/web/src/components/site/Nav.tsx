@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Menu, X, LayoutGrid } from "lucide-react";
 import { Logo } from "@/components/ui/Logo";
@@ -19,8 +20,8 @@ const LINKS = [
 export function AnnouncementBar() {
   return (
     <div className="bg-forest text-cream text-xs sm:text-sm text-center py-2.5 px-4">
-      <span className="font-medium">Shunbo Notetaker is now available on Windows and Mac.</span>
-      <Link href="#notetaker" className="ml-3 underline-offset-4 hover:underline">
+      <span className="font-medium">Shunbo Notetaker is now available on Windows and in the browser.</span>
+      <Link href="/notetaker" className="ml-3 underline-offset-4 hover:underline">
         Try for free ›
       </Link>
     </div>
@@ -28,7 +29,8 @@ export function AnnouncementBar() {
 }
 
 export function Nav() {
-  const [mode, setMode] = useState<"dictation" | "notetaker">("dictation");
+  const pathname = usePathname();
+  const mode: "dictation" | "notetaker" = pathname.startsWith("/notetaker") ? "notetaker" : "dictation";
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
@@ -54,10 +56,9 @@ export function Nav() {
             </Link>
             <div className="hidden md:flex items-center rounded-pill border border-ink/15 p-1 text-sm">
               {(["dictation", "notetaker"] as const).map((m) => (
-                <button
+                <Link
                   key={m}
-                  type="button"
-                  onClick={() => setMode(m)}
+                  href={m === "dictation" ? "/" : "/notetaker"}
                   className={cn(
                     "relative rounded-pill px-3.5 py-1.5 capitalize transition-colors",
                     mode === m ? "text-ink" : "text-muted hover:text-ink",
@@ -71,7 +72,7 @@ export function Nav() {
                     />
                   )}
                   <span className="relative">{m}</span>
-                </button>
+                </Link>
               ))}
             </div>
           </div>

@@ -3,7 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import { Check, AlertCircle, Loader2 } from "lucide-react";
 
 export type OverlayState = {
-  state: "idle" | "listening" | "transcribing" | "polishing" | "done" | "error";
+  state: "idle" | "listening" | "transcribing" | "polishing" | "done" | "error" | "meeting";
   level?: number;
   elapsed?: number;
   message?: string;
@@ -32,7 +32,8 @@ export function OverlayWindow() {
 
   const visible = s.state !== "idle";
   const tone =
-    s.state === "error" ? "bg-coral text-cream" : s.state === "done" ? "bg-forest text-cream" : "bg-ink/95 text-cream";
+    s.state === "error" || s.state === "meeting" ? "bg-coral text-cream" : s.state === "done" ? "bg-forest text-cream" : "bg-ink/95 text-cream";
+  const fmt = (sec: number) => `${String(Math.floor(sec / 60)).padStart(2, "0")}:${String(Math.floor(sec % 60)).padStart(2, "0")}`;
 
   return (
     <div className="flex h-full items-end justify-center pb-3">
@@ -41,6 +42,13 @@ export function OverlayWindow() {
           visible ? "translate-y-0 opacity-100" : "translate-y-3 opacity-0"
         }`}
       >
+        {s.state === "meeting" && (
+          <>
+            <span className="size-2.5 animate-pulse rounded-full bg-cream" />
+            <span className="text-sm">Recording meeting</span>
+            <span className="text-xs tabular-nums text-cream/70">{fmt(s.elapsed ?? 0)}</span>
+          </>
+        )}
         {s.state === "listening" && (
           <>
             <Bars level={s.level ?? 0} />

@@ -68,3 +68,54 @@ desktop app with global hotkey, accounts, usage limits and Stripe billing.
 - Brand: "Shunbo AI", product name "Shunbo". Copy rewritten, structure mirrors Wispr Flow.
 - Placeholder images/gradients where the original uses photos and videos.
 - Each phase is approved separately; I stop at each boundary for review.
+
+---
+
+## Phase 7 — Notetaker (meeting transcription and notes)  ✅ built 2026-10-13
+
+Goal: record any call (Zoom, Teams, Meet, phone bridge on the PC), get a speaker-labelled transcript and
+AI notes in the user's account, with consent built in.
+
+### Capture
+- **Desktop (primary)**: Rust side captures two streams with `cpal`:
+  the microphone (default input) and the system audio output via WASAPI loopback (Windows).
+  Both are encoded as 16 kHz mono WAV chunks of ~4 minutes and uploaded while the meeting runs.
+- **Web (secondary)**: in Chrome/Edge, `getDisplayMedia({audio:true})` on the call's tab plus the mic,
+  mixed in an AudioContext into the same two tracks. Covers Google Meet and browser-based calls without the app.
+- Two tracks, not a mix: the mic track is labelled **You**; the loopback track is **Others**, optionally
+  diarized into Speaker 1, 2, … by the transcription model.
+
+### Consent and indicators
+- First-run notice explaining that the user is responsible for informing participants; must be acknowledged once.
+- While recording: tray icon turns red, overlay pill shows "Recording meeting · 12:34", optional start/stop tone.
+- Meetings can be paused; audio is never kept after transcription (configurable later).
+
+### Server
+- Prisma: `Meeting` (title, startedAt, endedAt, status, source, durationSec, language),
+  `MeetingSegment` (meetingId, track, speaker, startSec, endSec, text), `MeetingNotes` (summary, actionItems[],
+  decisions[], questions[], generatedAt). `PlanConfig.meetingMinutesPerMonth` for quotas.
+- Routes: `POST /api/meetings` start, `POST /api/meetings/:id/chunks` (multipart, track + index) → transcribe
+  immediately and store segments, `POST /api/meetings/:id/finish` → generate notes, `GET /api/meetings`,
+  `GET /api/meetings/:id`, `DELETE`, `GET /api/meetings/:id/export?format=md`.
+- Transcription: `gpt-4o-transcribe` per chunk (per track), with `gpt-4o-transcribe-diarize` for the Others track
+  when diarization is on; falls back to plain transcription if the model is unavailable. Vocabulary is passed as a hint.
+- Notes: a single `gpt-4o-mini` call over the merged transcript (chunked map-reduce beyond ~60k tokens) producing
+  summary, action items with owners, decisions, open questions, in the user's default tone.
+- Quota: Free = N meeting minutes per month (configurable in /admin/plans), Pro unlimited; metered on finish.
+
+### UI
+- Desktop main window gets a **Notetaker** tab: title (prefilled from the active window, e.g. "Zoom Meeting"),
+  mic and system level meters, Start / Pause / Stop, elapsed time, upload status, "Open notes" when done.
+- Web `/meetings`: list with search; `/meetings/[id]`: transcript with speaker labels and timestamps, notes panel,
+  copy / export Markdown, rename, delete. Live transcript refreshes every 10 s while a meeting is in progress.
+- Web recorder at `/meetings/new` for the browser path.
+- Nav: Dictation / Notetaker toggle in the site header becomes real; `/notetaker` marketing page.
+
+### Stretch (not in first cut)
+- Auto-detect a call (zoom.exe, Teams, Meet tab) and offer to start recording.
+- Keep audio for playback with click-to-seek.
+- Shared meeting links for teammates.
+
+### Estimate
+Desktop capture and chunk upload is the hard part (new Rust code, WASAPI quirks). Roughly: server + web 1 day,
+desktop capture 1 day, notes quality + polish half a day.

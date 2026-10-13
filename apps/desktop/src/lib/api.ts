@@ -14,7 +14,15 @@ export type ServerSettings = {
   snippets: Snippet[];
   presets: Preset[];
 };
-export type Me = { user: { id: string; email: string }; plan: { slug: string; name: string }; used: number; limit: number | null; overLimit: boolean };
+export type Me = {
+  user: { id: string; email: string };
+  plan: { slug: string; name: string };
+  used: number;
+  limit: number | null;
+  overLimit: boolean;
+  meetingMinutesUsed: number;
+  meetingMinutesLimit: number | null;
+};
 
 export function makeApi(prefs: Pick<Prefs, "apiUrl" | "token">) {
   const base = prefs.apiUrl.replace(/\/$/, "");
@@ -56,6 +64,32 @@ export function makeApi(prefs: Pick<Prefs, "apiUrl" | "token">) {
         body: JSON.stringify({ raw, clean, tone, durationSec, language, source: "desktop" }),
       });
       return parse<{ item: { id: string } }>(res);
+    },
+    async meetingStart(title: string, language: string) {
+      const res = await fetch(`${base}/api/meetings`, {
+        method: "POST",
+        headers: headers({ "Content-Type": "application/json" }),
+        body: JSON.stringify({ title, language, source: "desktop" }),
+      });
+      return parse<{ item: { id: string; title: string }; remainingMinutes: number | null }>(res);
+    },
+    async meetingChunk(meetingId: string, track: "mic" | "system", index: number, wav: ArrayBuffer, offsetSec: number, durationSec: number) {
+      const fd = new FormData();
+      fd.append("audio", new Blob([wav], { type: "audio/wav" }), `${track}-${index}.wav`);
+      fd.append("index", String(index));
+      fd.append("track", track);
+      fd.append("offsetSec", String(offsetSec));
+      fd.append("durationSec", String(durationSec));
+      const res = await fetch(`${base}/api/meetings/${meetingId}/chunks`, { method: "POST", headers: headers(), body: fd });
+      return parse<{ ok: true; segments: number }>(res);
+    },
+    async meetingFinish(meetingId: string, durationSec: number) {
+      const res = await fetch(`${base}/api/meetings/${meetingId}/finish`, {
+        method: "POST",
+        headers: headers({ "Content-Type": "application/json" }),
+        body: JSON.stringify({ durationSec }),
+      });
+      return parse<{ ok: true; status: string }>(res);
     },
     revokeToken: () => fetch(`${base}/api/tokens`, { method: "DELETE", headers: headers({ "Content-Type": "application/json" }), body: "{}" }).catch(() => null),
   };

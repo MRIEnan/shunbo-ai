@@ -85,6 +85,25 @@ Code signing is not configured; Windows SmartScreen will warn until you sign the
 `.github/workflows/ci.yml` lints, type-checks, migrates a scratch Postgres and builds the web app on Ubuntu,
 and type-checks plus `cargo check`s the desktop app on Windows.
 
+## Phase 7 status (Notetaker)
+
+Meeting recording with speaker-labelled transcripts and AI notes.
+
+- **Desktop**: Notetaker tab in the app records the default microphone and system audio (WASAPI loopback via
+  `cpal`, with a silent keep-alive output stream so loopback keeps real timing). Audio is resampled to 16 kHz mono,
+  cut into 4-minute WAV chunks and uploaded while the meeting runs. A red pill shows "Recording meeting".
+- **Browser**: `/meetings/new` records a shared tab's audio plus the mic (Chrome/Edge). Same chunk upload.
+- **Server**: `POST /api/meetings` (checks the monthly minute allowance), `POST /api/meetings/:id/chunks`
+  (transcribes immediately with `gpt-4o-transcribe-diarize`, falling back to `whisper-1`; audio is never stored),
+  `POST /api/meetings/:id/finish` (meters minutes, generates summary / action items / decisions / questions),
+  `GET /api/meetings/:id/export` (Markdown). Pages: `/meetings`, `/meetings/[id]`, `/notetaker`.
+- **Quota**: `PlanConfig.meetingMinutesPerMonth` (Free 60, editable in `/admin/plans`; blank = unlimited).
+- **Consent**: one-time notice in both recorders; the user is responsible for informing participants.
+- Known limitation: speaker labels are assigned per 4-minute chunk, so "Speaker A" in one chunk may be a
+  different person in the next. Carrying speaker identity across chunks is a follow-up.
+- Local Rust smoke test for the capture engine (needs real audio devices):
+  `cd apps/desktop/src-tauri && cargo test --lib -- --ignored --nocapture`
+
 ## Phase 5 status (desktop app)
 
 `apps/desktop` is a Tauri v2 app (Rust core + the same React/Tailwind UI).

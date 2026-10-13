@@ -7,6 +7,7 @@ import { cn } from "@/lib/cn";
 const LINKS = [
   { href: "/app", label: "Dictate", auth: false },
   { href: "/history", label: "History", auth: true },
+  { href: "/meetings", label: "Meetings", auth: true },
   { href: "/settings", label: "Settings", auth: true },
   { href: "/admin", label: "Admin", auth: true, admin: true },
 ];

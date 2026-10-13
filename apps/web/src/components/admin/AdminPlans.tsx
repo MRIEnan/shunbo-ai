@@ -13,6 +13,7 @@ type Draft = {
   description: string;
   priceDollars: string;
   wordsPerWeek: string; // "" = unlimited
+  meetingMinutes: string; // "" = unlimited
   features: string; // newline separated
   cta: PlanDTO["cta"];
   active: boolean;
@@ -28,6 +29,7 @@ const toDraft = (p: PlanDTO): Draft => ({
   description: p.description,
   priceDollars: (p.priceMonthlyCents / 100).toFixed(2),
   wordsPerWeek: p.wordsPerWeek === null ? "" : String(p.wordsPerWeek),
+  meetingMinutes: p.meetingMinutesPerMonth === null ? "" : String(p.meetingMinutesPerMonth),
   features: p.features.join("\n"),
   cta: p.cta,
   active: p.active,
@@ -68,12 +70,14 @@ export function AdminPlans({ initial, stripeConfigured }: Props) {
     try {
       const cents = Math.round(parseFloat(d.priceDollars || "0") * 100);
       const words = d.wordsPerWeek.trim() === "" ? null : parseInt(d.wordsPerWeek, 10);
+      const minutes = d.meetingMinutes.trim() === "" ? null : parseInt(d.meetingMinutes, 10);
       const { item, needsSync } = await api<{ item: PlanDTO & { wordsPerWeek: number | null }; needsSync: boolean }>("/api/admin/plans", "PUT", {
         slug: d.slug,
         name: d.name,
         description: d.description,
         priceMonthlyCents: Number.isFinite(cents) ? cents : 0,
         wordsPerWeek: words,
+        meetingMinutesPerMonth: minutes,
         features: d.features.split("\n").map((f) => f.trim()).filter(Boolean),
         cta: d.cta,
         active: d.active,
@@ -123,7 +127,7 @@ export function AdminPlans({ initial, stripeConfigured }: Props) {
     const slug = `plan-${Date.now().toString(36)}`;
     setDrafts((all) => [
       ...all,
-      { slug, name: "New plan", description: "", priceDollars: "0.00", wordsPerWeek: "", features: "", cta: "checkout", active: false, sortOrder: all.length, stripePriceId: null, stripeProductId: null, isNew: true },
+      { slug, name: "New plan", description: "", priceDollars: "0.00", wordsPerWeek: "", meetingMinutes: "", features: "", cta: "checkout", active: false, sortOrder: all.length, stripePriceId: null, stripeProductId: null, isNew: true },
     ]);
   };
 
@@ -183,6 +187,9 @@ export function AdminPlans({ initial, stripeConfigured }: Props) {
               </Field>
               <Field label="Words per week (blank = unlimited)">
                 <input className={input} type="number" min="1" value={d.wordsPerWeek} onChange={(e) => update(d.slug, { wordsPerWeek: e.target.value })} placeholder="Unlimited" />
+              </Field>
+              <Field label="Meeting minutes per month (blank = unlimited)">
+                <input className={input} type="number" min="0" value={d.meetingMinutes} onChange={(e) => update(d.slug, { meetingMinutes: e.target.value })} placeholder="Unlimited" />
               </Field>
               <Field label="Button type">
                 <select className={input} value={d.cta} onChange={(e) => update(d.slug, { cta: e.target.value as Draft["cta"] })}>
