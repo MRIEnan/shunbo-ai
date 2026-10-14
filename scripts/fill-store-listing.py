@@ -78,11 +78,11 @@ REQ_REC = [
     "Broadband internet connection",
 ]
 
-LOGOS = ["shunbo-logo-1080.png", "shunbo-logo-300.png"]
-SCREENSHOTS = ["01-home.png", "02-how-it-works.png", "03-notetaker.png", "04-dictate.png", "05-settings.png", "06-record-meeting.png"]
+LOGOS = ["box-art-1080.png", "poster-art-720x1080.png"]
+SCREENSHOTS = ["08-desktop-dictate.png", "09-desktop-notetaker.png", "07-desktop-setup.png", "10-desktop-diagnostics.png", "01-home.png", "03-notetaker.png", "04-dictate.png", "06-record-meeting.png", "05-settings.png", "02-how-it-works.png"]
 
 values = {
-    "ProductName": "Shunbo AI: Voice to Text",
+    "ProductName": "Shunbo Ai: Voice to text",
     "Description": DESCRIPTION,
     "WhatsNew": WHATS_NEW,
     "ShortDescription": SHORT,
