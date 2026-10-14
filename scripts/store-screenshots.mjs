@@ -19,6 +19,11 @@ await page.emulateMediaFeatures([{ name: "prefers-reduced-motion", value: "reduc
 const shot = async (path, name, opts = {}) => {
   await page.goto(`${base}${path}`, { waitUntil: "networkidle0", timeout: 60_000 });
   if (opts.scrollTo) await page.evaluate((y) => window.scrollTo({ top: y, behavior: "instant" }), opts.scrollTo);
+  // Hide the Next.js dev badge and replace the test account email for a clean listing image.
+  await page.evaluate(() => {
+    document.querySelectorAll("nextjs-portal, [data-nextjs-dev-tools-button], #__next-build-watcher").forEach((el) => el.remove());
+    document.querySelectorAll("header span").forEach((el) => { if (/@shunbo\.local$/.test(el.textContent?.trim() ?? "")) el.textContent = "you@example.com"; });
+  });
   await new Promise((r) => setTimeout(r, opts.wait ?? 1500));
   await page.screenshot({ path: `${out}/${name}.png`, type: "png" });
   console.log("saved", `${out}/${name}.png`);
@@ -33,7 +38,7 @@ await shot("/notetaker", "03-notetaker");
 if (password) {
   await page.goto(`${base}/signin`, { waitUntil: "networkidle0" });
   await page.type("#email", email);
-  await page.type("#password", password);
+  await page.type('input[type="password"]', password);
   await Promise.all([page.waitForNavigation({ waitUntil: "networkidle0", timeout: 60_000 }), page.click('button[type="submit"]')]);
   await shot("/app", "04-dictate");
   await shot("/settings", "05-settings");
