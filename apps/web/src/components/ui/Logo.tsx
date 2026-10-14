@@ -15,7 +15,21 @@ export function Waveform({ className, bars = 5 }: { className?: string; bars?: n
   );
 }
 
-export function Logo({ className, light }: { className?: string; light?: boolean }) {
+export function BetaBadge({ light, className }: { light?: boolean; className?: string }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex h-[18px] items-center rounded-pill border px-1.5 text-[10px] font-medium uppercase leading-none tracking-wider",
+        light ? "border-cream/30 text-cream/80" : "border-ink/15 bg-lavender text-ink/70",
+        className,
+      )}
+    >
+      Beta
+    </span>
+  );
+}
+
+export function Logo({ className, light, beta = true }: { className?: string; light?: boolean; beta?: boolean }) {
   return (
     <span
       className={cn(
@@ -26,6 +40,7 @@ export function Logo({ className, light }: { className?: string; light?: boolean
     >
       <Waveform className="text-current" />
       Shunbo
+      {beta && <BetaBadge light={light} className="-ml-0.5" />}
     </span>
   );
 }
