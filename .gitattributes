@@ -3,3 +3,5 @@
 *.ico binary
 *.icns binary
 *.exe binary
+releases/*.exe binary
+releases/**/*.exe binary
