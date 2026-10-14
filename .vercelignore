@@ -1,0 +1,14 @@
+# Only the web app is deployed to Vercel.
+apps/desktop
+releases
+scripts
+.github
+node_modules
+**/node_modules
+**/.next
+**/dist
+**/target
+apps/web/public/downloads
+*.exe
+*.log
+.env*
