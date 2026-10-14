@@ -12,3 +12,8 @@ apps/desktop/src-tauri/gen/schemas
 apps/desktop/dist
 apps/web/public/downloads/*.exe
 apps/web/test-accounts.local.md
+.env*.local
+.vercel
+
+.vercel
+.env*
