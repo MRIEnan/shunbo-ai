@@ -1,6 +1,6 @@
 [package]
 name = "shunbo-desktop"
-version = "0.3.0"
+version = "0.3.1"
 description = "Shunbo voice dictation for desktop"
 authors = ["Shunbo AI"]
 edition = "2021"
