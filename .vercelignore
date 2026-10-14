@@ -1,7 +1,7 @@
 # Only the web app is deployed to Vercel.
 apps/desktop
 releases
-scripts
+/scripts
 .github
 node_modules
 **/node_modules
