@@ -11,5 +11,8 @@
     "lint": "npm run lint -w web",
     "desktop:build": "npm run tauri build -w desktop",
     "desktop:publish-local": "npm run desktop:build && node scripts/publish-local-installer.mjs"
+  },
+  "devDependencies": {
+    "puppeteer-core": "^25.13.0"
   }
 }

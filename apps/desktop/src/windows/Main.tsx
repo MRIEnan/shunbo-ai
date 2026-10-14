@@ -262,6 +262,7 @@ export function MainWindow() {
         lastDictation={last}
         onUpdate={update}
         onFinish={() => update({ onboarded: true })}
+        onToken={applyToken}
       />
     );
   }
@@ -352,7 +353,7 @@ export function MainWindow() {
           <p className="mt-2 text-sm text-ink/65">We&rsquo;ll open your browser to connect this computer to your Shunbo account.</p>
           <button
             type="button"
-            onClick={() => openUrl(`${prefs.apiUrl}/desktop/auth`)}
+            onClick={() => openUrl(`${prefs.apiUrl}/desktop/auth`).catch((e) => { logError(`openUrl failed: ${e}`); setStatus({ kind: "err", text: `Couldn't open your browser. Visit ${prefs.apiUrl}/desktop/auth manually and paste the code below.` }); })}
             className="mt-4 inline-flex h-11 items-center gap-2 rounded-pill border border-ink/80 bg-lavender px-5 text-sm font-medium shadow-[0_2px_0_0_rgba(26,26,26,0.8)]"
           >
             <ExternalLink className="size-4" /> Sign in with browser

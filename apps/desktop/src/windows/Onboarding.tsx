@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { writeText } from "@tauri-apps/plugin-clipboard-manager";
+import { error as logError, info as logInfo } from "@tauri-apps/plugin-log";
 import { Mic, Speaker, Keyboard, ShieldCheck, Check, Loader2, AlertCircle, ExternalLink, ArrowRight, Monitor } from "lucide-react";
 import type { Prefs } from "@/lib/store";
 
@@ -13,6 +15,7 @@ type Props = {
   lastDictation: string | null;
   onUpdate: (patch: Partial<Prefs>) => Promise<void>;
   onFinish: () => void;
+  onToken: (token: string) => Promise<void>;
 };
 
 /**
@@ -20,13 +23,29 @@ type Props = {
  * the system-audio step plays a tone and confirms loopback heard it, the shortcut step waits
  * for an actual dictation to come through.
  */
-export function Onboarding({ prefs, signedIn, lastDictation, onUpdate, onFinish }: Props) {
+export function Onboarding({ prefs, signedIn, lastDictation, onUpdate, onFinish, onToken }: Props) {
   const [step, setStep] = useState<Step>("welcome");
   const [micState, setMicState] = useState<"idle" | "testing" | "ok" | "blocked" | "none">("idle");
   const [micLevel, setMicLevel] = useState(0);
   const [sysState, setSysState] = useState<"idle" | "testing" | "ok" | "fail">("idle");
   const [sysDetail, setSysDetail] = useState("");
   const [shortcutSeen, setShortcutSeen] = useState(false);
+  const [openErr, setOpenErr] = useState<string | null>(null);
+  const [manualToken, setManualToken] = useState("");
+  const [linkCopied, setLinkCopied] = useState(false);
+  const signInUrl = `${prefs.apiUrl}/desktop/auth`;
+
+  const openSignIn = async () => {
+    setOpenErr(null);
+    try {
+      await openUrl(signInUrl);
+      logInfo(`opened browser for sign-in: ${signInUrl}`);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      logError(`openUrl failed: ${msg}`);
+      setOpenErr(msg);
+    }
+  };
   const raf = useRef<number | null>(null);
   const stream = useRef<MediaStream | null>(null);
 
@@ -159,9 +178,25 @@ export function Onboarding({ prefs, signedIn, lastDictation, onUpdate, onFinish 
           <h1 className="display text-4xl">Sign in</h1>
           <p className="mt-3 text-ink/70">We&rsquo;ll open your browser. Sign in or create an account there, click Connect, and come back here.</p>
           <div className="mt-6 flex items-center gap-3">
-            <Primary onClick={() => openUrl(`${prefs.apiUrl}/desktop/auth`)}><ExternalLink className="size-4" /> Open browser to sign in</Primary>
+            <Primary onClick={openSignIn}><ExternalLink className="size-4" /> Open browser to sign in</Primary>
             {signedIn ? <span className="inline-flex items-center gap-1 text-sm text-forest"><Check className="size-4" /> Connected</span> : <span className="inline-flex items-center gap-1 text-sm text-ink/60"><Loader2 className="size-4 animate-spin" /> Waiting…</span>}
           </div>
+          {openErr && (
+            <p className="mt-3 flex items-start gap-2 rounded-xl bg-coral/10 p-3 text-sm"><AlertCircle className="mt-0.5 size-4 shrink-0 text-coral" /><span>Couldn&rsquo;t open your browser ({openErr}). Open this address yourself: <code className="select-text">{signInUrl}</code></span></p>
+          )}
+          <details className="mt-4 text-sm" open={!!openErr}>
+            <summary className="cursor-pointer text-ink/60">Browser didn&rsquo;t open or didn&rsquo;t come back? Do it manually</summary>
+            <div className="mt-3 flex flex-col gap-2">
+              <div className="flex items-center gap-2 text-xs text-ink/60">
+                <code className="select-text break-all">{signInUrl}</code>
+                <button type="button" className="rounded-pill border border-ink/15 px-2 py-0.5" onClick={async () => { await writeText(signInUrl); setLinkCopied(true); setTimeout(() => setLinkCopied(false), 1500); }}>{linkCopied ? "Copied" : "Copy link"}</button>
+              </div>
+              <form className="flex gap-2" onSubmit={(e) => { e.preventDefault(); if (manualToken.trim()) onToken(manualToken.trim()); }}>
+                <input value={manualToken} onChange={(e) => setManualToken(e.target.value)} placeholder="Paste the code from the sign-in page (shb_…)" className="h-10 flex-1 rounded-xl border border-ink/15 bg-cream px-3 text-sm" />
+                <button type="submit" className="h-10 rounded-pill bg-ink px-4 text-xs text-cream">Connect</button>
+              </form>
+            </div>
+          </details>
           <p className="mt-4 text-xs text-ink/60">Server: {prefs.apiUrl}. Change it from the main screen if your Shunbo runs elsewhere.</p>
         </section>
       )}

@@ -19,7 +19,7 @@
     "clipboard-manager:allow-write-text",
     "store:default",
     "deep-link:default",
-    "opener:allow-open-url",
+    "opener:default",
     "log:default",
     "dialog:allow-ask",
     "dialog:allow-message",
