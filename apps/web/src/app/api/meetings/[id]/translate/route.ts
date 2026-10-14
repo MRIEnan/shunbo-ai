@@ -6,6 +6,7 @@ import { rateLimit } from "@/lib/rate-limit";
 import { isSupportedLanguage } from "@/lib/languages";
 import { classifyTextLanguage, type Notes, type TranslationDTO } from "@/lib/meetings";
 import { translateSegments, translateNotes, TRANSLATE_MODEL } from "@/lib/translate";
+import { maintenanceGuard } from "@/lib/maintenance";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -31,6 +32,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (!user) return response;
   const limited = await rateLimit(`translate:${user.id}`, 10, 60_000);
   if (!limited.ok) return NextResponse.json({ error: "Too many translation requests. Try again in a minute." }, { status: 429 });
+  // AI paused from the admin dashboard: refuse before any OpenAI call.
+  const paused = await maintenanceGuard();
+  if (paused) return paused;
 
   const { id } = await params;
   const b = await req.json().catch(() => ({}));

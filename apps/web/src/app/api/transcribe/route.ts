@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getOpenAI, TRANSCRIBE_MODEL } from "@/lib/openai";
 import { rateLimit, clientKey } from "@/lib/rate-limit";
+import { maintenanceGuard } from "@/lib/maintenance";
 import { currentUser } from "@/lib/session";
 import { getEntitlement } from "@/lib/billing";
 import { classifyTextLanguage } from "@/lib/meetings";
@@ -16,6 +17,10 @@ export async function POST(req: Request) {
   if (!limited.ok) {
     return NextResponse.json({ error: "Too many requests. Try again shortly." }, { status: 429 });
   }
+
+  // AI paused from the admin dashboard: refuse before any OpenAI call.
+  const paused = await maintenanceGuard();
+  if (paused) return paused;
 
   // Signed-in: plan allowance (with a small margin so one dictation can overshoot by at most one clip).
   // Signed-out demo: a server-side allowance per client, so skipping the client counter buys nothing.

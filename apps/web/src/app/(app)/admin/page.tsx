@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { startOfWeek, getPlans } from "@/lib/billing";
 import { formatPrice } from "@/lib/format";
+import { getMaintenance } from "@/lib/maintenance";
+import { AdminMaintenance } from "@/components/admin/AdminMaintenance";
 
 const daysAgo = (n: number) => new Date(Date.now() - n * 86400000);
 
@@ -31,10 +33,12 @@ export default async function AdminOverview() {
   const paidCount = paidActive.reduce((n, s) => n + s._count, 0);
   const mrrCents = paidActive.reduce((sum, s) => sum + s._count * (plans.find((p) => p.slug === s.plan)?.priceMonthlyCents ?? 0), 0);
 
+  const maintenance = await getMaintenance(true);
   const recent = await prisma.user.findMany({ orderBy: { createdAt: "desc" }, take: 8, include: { subscription: true, _count: { select: { dictations: true } } } });
 
   return (
     <div className="flex flex-col gap-6">
+      <AdminMaintenance initial={maintenance} />
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Stat label="Users" value={users} hint={`+${newUsers7d} in the last 7 days`} />
         <Stat label="Paid subscriptions" value={paidCount} hint={`${formatPrice(mrrCents)} MRR`} />

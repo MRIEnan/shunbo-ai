@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Figtree, EB_Garamond, Noto_Sans_Bengali } from "next/font/google";
 import "./globals.css";
+import { Toaster } from "@/components/ui/Toaster";
 
 const figtree = Figtree({
   variable: "--font-figtree",
@@ -43,7 +44,10 @@ export default function RootLayout({
       lang="en"
       className={`${figtree.variable} ${garamond.variable} ${notoBengali.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-cream text-ink">{children}</body>
+      <body className="min-h-full flex flex-col bg-cream text-ink">
+        {children}
+        <Toaster />
+      </body>
     </html>
   );
 }

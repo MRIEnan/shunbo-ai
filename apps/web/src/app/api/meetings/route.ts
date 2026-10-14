@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
 import { getEntitlement } from "@/lib/billing";
 import { sweepStaleMeetings } from "@/lib/meeting-finish";
+import { maintenanceGuard } from "@/lib/maintenance";
 
 export const runtime = "nodejs";
 
@@ -46,6 +47,9 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   const { user, response } = await requireUser();
   if (!user) return response;
+  // AI paused from the admin dashboard: refuse before any OpenAI call.
+  const paused = await maintenanceGuard();
+  if (paused) return paused;
   const e = await getEntitlement(user.id);
   if (e.meetingOverLimit) {
     return NextResponse.json(

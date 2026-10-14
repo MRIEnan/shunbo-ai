@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { generateNotes, classifyTextLanguage, type Notes } from "@/lib/meetings";
 import { STALE_MEETING_MS } from "@/lib/metering";
+import { getMaintenance } from "@/lib/maintenance";
 
 export type FinishResult = { status: "done" | "failed"; notes?: Notes; language?: string | null; error?: string };
 
@@ -51,6 +52,7 @@ export async function finalizeMeeting(id: string, opts: { durationSec?: number; 
  * Cheap when nothing is stale (one query). Returns the ids it finished.
  */
 export async function sweepStaleMeetings(userId: string, excludeId?: string): Promise<string[]> {
+  if ((await getMaintenance()).enabled) return [];
   const cutoff = new Date(Date.now() - STALE_MEETING_MS);
   const stale = await prisma.meeting.findMany({
     where: {

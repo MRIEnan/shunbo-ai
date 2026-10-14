@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getOpenAI, CLEAN_MODEL } from "@/lib/openai";
 import { cleanupSystemPrompt, TONES, type Tone, type SnippetHint } from "@/lib/prompts";
 import { rateLimit, clientKey } from "@/lib/rate-limit";
+import { maintenanceGuard } from "@/lib/maintenance";
 import { currentUser } from "@/lib/session";
 import { anonymousAllow, ANON_MAX_TEXT_CHARS } from "@/lib/metering";
 
@@ -15,6 +16,10 @@ export async function POST(req: Request) {
   if (!limited.ok) {
     return NextResponse.json({ error: "Too many requests. Try again shortly." }, { status: 429 });
   }
+
+  // AI paused from the admin dashboard: refuse before any OpenAI call.
+  const paused = await maintenanceGuard();
+  if (paused) return paused;
 
   let body: { raw?: unknown; tone?: unknown; vocabulary?: unknown; snippets?: unknown; instructions?: unknown };
   try {

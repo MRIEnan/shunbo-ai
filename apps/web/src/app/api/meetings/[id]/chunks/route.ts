@@ -6,6 +6,7 @@ import { getEntitlement } from "@/lib/billing";
 import { transcribeChunk, detectLanguageFromAudio } from "@/lib/meetings";
 import { meterMeetingChunk, meteredMeetingSec, MAX_MEETING_SEC } from "@/lib/metering";
 import { finalizeMeeting, sweepStaleMeetings } from "@/lib/meeting-finish";
+import { maintenanceGuard } from "@/lib/maintenance";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -26,6 +27,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const meeting = await prisma.meeting.findFirst({ where: { id, userId: user.id } });
   if (!meeting) return NextResponse.json({ error: "Not found" }, { status: 404 });
   if (meeting.status !== "recording") return NextResponse.json({ error: "Meeting is no longer recording", code: "meeting_ended" }, { status: 409 });
+  // AI paused from the admin dashboard: refuse before any OpenAI call.
+  const paused = await maintenanceGuard();
+  if (paused) return paused;
   // Abandoned recordings of this user (other than this one) get closed while we are here.
   await sweepStaleMeetings(user.id, id).catch((e) => console.warn("[meeting sweep]", e instanceof Error ? e.message : e));
 
