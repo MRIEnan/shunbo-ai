@@ -85,6 +85,19 @@ Code signing is not configured; Windows SmartScreen will warn until you sign the
 `.github/workflows/ci.yml` lints, type-checks, migrates a scratch Postgres and builds the web app on Ubuntu,
 and type-checks plus `cargo check`s the desktop app on Windows.
 
+## Installer return codes
+
+`Shunbo_<version>_x64-setup.exe` is an NSIS installer built by Tauri. Silent install: `Shunbo_<version>_x64-setup.exe /S`.
+It installs per user (no admin prompt), upgrades an existing version in place, never requires a reboot, and needs no network.
+
+| Exit code | Meaning |
+|---|---|
+| 0 | Installation successful (also returned when the same version is already installed and was refreshed in place) |
+| 1 | Installation cancelled by the user |
+| 2 | Installation aborted by the installer: insufficient disk space, files locked by a running Shunbo instance, a security policy blocked the install, or a file could not be written. Close Shunbo (tray, Quit Shunbo) and run the installer again |
+
+Uninstall silently: `"%LOCALAPPDATA%\Shunbo\uninstall.exe" /S`.
+
 ## Phase 8 status (stability, onboarding, password auth, Store prep)
 
 - **Accounts**: sign up with email + password → 6-digit emailed code (`/signup`, `/verify`); sign in with password
