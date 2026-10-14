@@ -33,6 +33,8 @@ export async function GET(req: Request) {
     durationSec: m.durationSec,
     startedAt: m.startedAt.getTime(),
     summary: m.notes?.summary ?? null,
+    language: m.detectedLanguage ?? m.language ?? null,
+    languages: m.languages,
   }));
   return NextResponse.json({ items, nextCursor: hasMore ? items[items.length - 1].id : null });
 }
@@ -56,6 +58,8 @@ export async function POST(req: Request) {
       title,
       source: b.source === "web" ? "web" : "desktop",
       language: typeof b.language === "string" && b.language !== "auto" ? b.language : null,
+      // An explicit choice is also the "detected" language, so the badge shows immediately.
+      detectedLanguage: typeof b.language === "string" && b.language !== "auto" ? b.language : null,
       diarize: b.diarize !== false,
     },
   });

@@ -1,10 +1,16 @@
 import type { Metadata } from "next";
-import { Figtree, EB_Garamond } from "next/font/google";
+import { Figtree, EB_Garamond, Noto_Sans_Bengali } from "next/font/google";
 import "./globals.css";
 
 const figtree = Figtree({
   variable: "--font-figtree",
   subsets: ["latin"],
+  weight: ["400", "500", "600"],
+});
+
+const notoBengali = Noto_Sans_Bengali({
+  variable: "--font-noto-bengali",
+  subsets: ["bengali"],
   weight: ["400", "500", "600"],
 });
 
@@ -35,7 +41,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${figtree.variable} ${garamond.variable} h-full antialiased`}
+      className={`${figtree.variable} ${garamond.variable} ${notoBengali.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-cream text-ink">{children}</body>
     </html>

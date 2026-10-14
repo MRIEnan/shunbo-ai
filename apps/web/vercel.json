@@ -3,9 +3,20 @@
   "buildCommand": "prisma migrate deploy && next build",
   "framework": "nextjs",
   "functions": {
-    "src/app/api/transcribe/route.ts": { "maxDuration": 60 },
-    "src/app/api/clean/route.ts": { "maxDuration": 30 },
-    "src/app/api/meetings/[id]/chunks/route.ts": { "maxDuration": 120 },
-    "src/app/api/meetings/[id]/finish/route.ts": { "maxDuration": 120 }
+    "src/app/api/transcribe/route.ts": {
+      "maxDuration": 60
+    },
+    "src/app/api/clean/route.ts": {
+      "maxDuration": 30
+    },
+    "src/app/api/meetings/[id]/chunks/route.ts": {
+      "maxDuration": 120
+    },
+    "src/app/api/meetings/[id]/finish/route.ts": {
+      "maxDuration": 120
+    },
+    "src/app/api/meetings/[id]/translate/route.ts": {
+      "maxDuration": 120
+    }
   }
 }

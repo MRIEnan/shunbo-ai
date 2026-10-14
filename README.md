@@ -132,6 +132,16 @@ Meeting recording with speaker-labelled transcripts and AI notes.
   `GET /api/meetings/:id/export` (Markdown). Pages: `/meetings`, `/meetings/[id]`, `/notetaker`.
 - **Quota**: `PlanConfig.meetingMinutesPerMonth` (Free 60, editable in `/admin/plans`; blank = unlimited).
 - **Consent**: one-time notice in both recorders; the user is responsible for informing participants.
+- **Languages**: on "auto" every chunk is language-detected (`whisper-1` verbose output) and transcribed verbatim in
+  its own language and native script; the first chunk with speech sets the meeting's dominant language
+  (`Meeting.detectedLanguage`, badge in the list and meeting page, override select on the page). Scripted languages
+  (bn, hi, ar, zh, ja, ko) go through `gpt-4o-transcribe` with a native-script prompt because the diarize model
+  romanizes them; those chunks get spread timestamps and "You"/"Others" labels instead of Speaker A/B. Mixed
+  meetings show per-segment chips when a segment's language differs. Notes are written in the meeting's language.
+  **Translate** (`POST /api/meetings/:id/translate {target}`) translates transcript + notes with `gpt-4o-mini`, caches
+  one row per target (`MeetingTranslation`, max 5), and the page toggles Original / translated; `export?lang=xx`
+  appends the translation. Regenerating notes invalidates only the translated notes. Dictations also store
+  `detectedLanguage`, shown in History.
 - Known limitation: speaker labels are assigned per 4-minute chunk, so "Speaker A" in one chunk may be a
   different person in the next. Carrying speaker identity across chunks is a follow-up.
 - Local Rust smoke test for the capture engine (needs real audio devices):

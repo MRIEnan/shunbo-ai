@@ -25,6 +25,8 @@ export default async function MeetingsPage() {
     durationSec: m.durationSec,
     startedAt: m.startedAt.getTime(),
     summary: m.notes?.summary ?? null,
+    language: m.detectedLanguage ?? m.language ?? null,
+    languages: m.languages,
   }));
 
   return (

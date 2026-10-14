@@ -9,6 +9,7 @@ export type Dictation = {
   tone: Tone;
   durationSec: number;
   createdAt: number;
+  detectedLanguage?: string | null;
 };
 
 export type Settings = {
@@ -70,17 +71,4 @@ export const store = {
   },
 };
 
-export const LANGUAGES: { code: string; label: string }[] = [
-  { code: "auto", label: "Auto-detect" },
-  { code: "en", label: "English" },
-  { code: "bn", label: "Bengali" },
-  { code: "hi", label: "Hindi" },
-  { code: "es", label: "Spanish" },
-  { code: "fr", label: "French" },
-  { code: "de", label: "German" },
-  { code: "pt", label: "Portuguese" },
-  { code: "ar", label: "Arabic" },
-  { code: "zh", label: "Chinese" },
-  { code: "ja", label: "Japanese" },
-  { code: "ko", label: "Korean" },
-];
+export { LANGUAGES } from "./languages";

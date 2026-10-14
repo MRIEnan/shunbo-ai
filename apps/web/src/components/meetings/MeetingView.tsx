@@ -3,11 +3,15 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Download, Trash2, RefreshCw, Loader2, Pencil, Check, Copy, AlertCircle } from "lucide-react";
+import { ArrowLeft, Download, Trash2, RefreshCw, Loader2, Pencil, Check, Copy, AlertCircle, Languages } from "lucide-react";
 import { StatusPill } from "./MeetingList";
+import { LanguageBadge } from "./LanguageBadge";
+import { LANGUAGES, LANGUAGE_INFO, languageLabel } from "@/lib/languages";
 import { cn } from "@/lib/cn";
 
-type Segment = { id: string; speaker: string; track: string; startSec: number; endSec: number; text: string };
+type Segment = { id: string; speaker: string; track: string; startSec: number; endSec: number; text: string; language: string | null };
+type Notes = { summary: string; actionItems: string[]; decisions: string[]; questions: string[]; language?: string | null };
+type Translation = { targetLang: string; sourceLang: string | null; segments: Record<string, string>; notes: Notes | null; createdAt: number; updatedAt: number; model: string };
 type Meeting = {
   id: string;
   title: string;
@@ -17,9 +21,13 @@ type Meeting = {
   startedAt: number;
   endedAt: number | null;
   error: string | null;
-  notes: { summary: string; actionItems: string[]; decisions: string[]; questions: string[] } | null;
+  language: string | null;
+  detectedLanguage: string | null;
+  languages: string[];
+  notes: Notes | null;
   segments: Segment[];
   chunks: { index: number; track: string; status: string; error: string | null }[];
+  translations: Translation[];
 };
 
 const fmt = (s: number) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
@@ -27,8 +35,9 @@ const fmt = (s: number) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${Str
 const SPEAKER_COLORS = ["text-forest", "text-coral", "text-[#7c3aed]", "text-[#b45309]", "text-[#0369a1]", "text-[#be185d]"];
 function speakerColor(name: string) {
   if (name === "You") return "text-ink";
-  const n = parseInt(name.replace(/\D/g, ""), 10);
-  return SPEAKER_COLORS[(Number.isFinite(n) ? n : 0) % SPEAKER_COLORS.length];
+  const key = name.replace(/^Speaker\s*/i, "");
+  const n = /^\d+$/.test(key) ? parseInt(key, 10) : key.charCodeAt(0) || 0;
+  return SPEAKER_COLORS[n % SPEAKER_COLORS.length];
 }
 
 export function MeetingView({ id }: { id: string }) {
@@ -39,6 +48,8 @@ export function MeetingView({ id }: { id: string }) {
   const [title, setTitle] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [view, setView] = useState<string>("original");
+  const [target, setTarget] = useState<string>("en");
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/meetings/${id}`);
@@ -67,12 +78,47 @@ export function MeetingView({ id }: { id: string }) {
     };
   }, [load]);
 
+  const sourceLang = m?.detectedLanguage ?? m?.language ?? null;
+  const targetOptions = LANGUAGES.filter((l) => l.code !== "auto" && l.code !== sourceLang);
+  // Never offer the source language as a target (derived, so no effect needed).
+  const effectiveTarget = target === sourceLang ? (targetOptions[0]?.code ?? "en") : target;
+
+  const t = view === "original" ? null : (m?.translations.find((x) => x.targetLang === view) ?? null);
+  const textOf = (s: Segment) => (t ? (t.segments[s.id] ?? s.text) : s.text);
+  const notes = t ? t.notes : m?.notes ?? null;
+  const viewLang = t ? t.targetLang : sourceLang;
+
   const saveTitle = async () => {
     setBusy("title");
     await fetch(`/api/meetings/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title }) });
     setEditing(false);
     setBusy(null);
     load();
+  };
+
+  const setLanguage = async (code: string) => {
+    setBusy("lang");
+    const res = await fetch(`/api/meetings/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ detectedLanguage: code }) });
+    if (!res.ok) setError((await res.json()).error ?? "Couldn't change language");
+    setView("original");
+    setBusy(null);
+    load();
+  };
+
+  const translate = async (force = false) => {
+    setBusy("translate");
+    setError(null);
+    try {
+      const res = await fetch(`/api/meetings/${id}/translate`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ target: effectiveTarget, force }) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Translation failed");
+      await load();
+      setView(effectiveTarget);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Translation failed");
+    } finally {
+      setBusy(null);
+    }
   };
 
   const regenerate = async () => {
@@ -90,8 +136,8 @@ export function MeetingView({ id }: { id: string }) {
   };
 
   const copyNotes = async () => {
-    if (!m?.notes) return;
-    const text = [m.notes.summary, "", ...(m.notes.actionItems.length ? ["Action items:", ...m.notes.actionItems.map((a) => `- ${a}`), ""] : []), ...(m.notes.decisions.length ? ["Decisions:", ...m.notes.decisions.map((d) => `- ${d}`)] : [])].join("\n");
+    if (!notes) return;
+    const text = [notes.summary, "", ...(notes.actionItems.length ? ["Action items:", ...notes.actionItems.map((a) => `- ${a}`), ""] : []), ...(notes.decisions.length ? ["Decisions:", ...notes.decisions.map((d) => `- ${d}`)] : [])].join("\n");
     await navigator.clipboard.writeText(text).catch(() => {});
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
@@ -106,6 +152,8 @@ export function MeetingView({ id }: { id: string }) {
   }
 
   const failedChunks = m.chunks.filter((c) => c.status === "failed");
+  const hasTranslations = m.translations.length > 0;
+  const exportHref = `/api/meetings/${id}/export${view !== "original" ? `?lang=${view}` : ""}`;
 
   return (
     <>
@@ -134,11 +182,12 @@ export function MeetingView({ id }: { id: string }) {
             )}
             <p className="mt-2 flex flex-wrap items-center gap-2 text-sm text-ink/60">
               <StatusPill status={m.status} />
+              <LanguageBadge code={sourceLang} extra={m.languages} onChange={m.status === "done" ? setLanguage : undefined} size="md" />
               {new Date(m.startedAt).toLocaleString()} · {Math.max(1, Math.round(m.durationSec / 60))} min · {m.source === "web" ? "browser" : "desktop"}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <a href={`/api/meetings/${id}/export`} className="inline-flex h-9 items-center gap-1.5 rounded-pill border border-ink/15 px-3 text-xs"><Download className="size-3.5" /> Export .md</a>
+            <a href={exportHref} className="inline-flex h-9 items-center gap-1.5 rounded-pill border border-ink/15 px-3 text-xs"><Download className="size-3.5" /> Export .md</a>
             {m.status !== "recording" && (
               <button type="button" onClick={regenerate} disabled={busy !== null} className="inline-flex h-9 items-center gap-1.5 rounded-pill border border-ink/15 px-3 text-xs">
                 {busy === "notes" ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />} Regenerate notes
@@ -165,55 +214,100 @@ export function MeetingView({ id }: { id: string }) {
         </p>
       )}
 
+      {/* Translation controls */}
+      {m.status === "done" && m.segments.length > 0 && (
+        <div className="mb-5 flex flex-wrap items-center gap-2 rounded-card border border-ink/10 bg-cream-2 px-4 py-3 text-sm">
+          <Languages className="size-4 text-ink/60" />
+          {hasTranslations && (
+            <div className="inline-flex rounded-pill border border-ink/15 bg-cream p-0.5 text-xs">
+              <button type="button" onClick={() => setView("original")} className={cn("rounded-pill px-3 py-1.5", view === "original" ? "bg-ink text-cream" : "text-ink/60")}>
+                Original{sourceLang ? ` · ${LANGUAGE_INFO[sourceLang]?.native ?? sourceLang}` : ""}
+              </button>
+              {m.translations.map((tr) => (
+                <button key={tr.targetLang} type="button" onClick={() => setView(tr.targetLang)} className={cn("rounded-pill px-3 py-1.5", view === tr.targetLang ? "bg-ink text-cream" : "text-ink/60")} lang={tr.targetLang}>
+                  {LANGUAGE_INFO[tr.targetLang]?.native ?? tr.targetLang}
+                </button>
+              ))}
+            </div>
+          )}
+          <div className="ml-auto flex items-center gap-2">
+            <select value={effectiveTarget} onChange={(e) => setTarget(e.target.value)} aria-label="Translate to" className="h-9 rounded-xl border border-ink/15 bg-cream px-2 text-xs">
+              {targetOptions.map((l) => (
+                <option key={l.code} value={l.code}>{l.label}</option>
+              ))}
+            </select>
+            <button type="button" onClick={() => translate(false)} disabled={busy !== null} className="inline-flex h-9 items-center gap-1.5 rounded-pill border border-ink/80 bg-lavender px-3 text-xs font-medium shadow-[0_2px_0_0_rgba(26,26,26,0.8)] disabled:opacity-60">
+              {busy === "translate" ? <Loader2 className="size-3.5 animate-spin" /> : <Languages className="size-3.5" />}
+              {m.translations.some((x) => x.targetLang === effectiveTarget) ? "Re-translate" : "Translate"}
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="grid gap-6 lg:grid-cols-[1fr_22rem]">
-        <section className="rounded-card border border-ink/10 bg-cream-2">
-          <div className="border-b border-ink/10 px-5 py-3 text-sm font-medium">Transcript</div>
+        <section className="rounded-card border border-ink/10 bg-cream-2" lang={viewLang ?? undefined}>
+          <div className="flex items-center justify-between border-b border-ink/10 px-5 py-3 text-sm font-medium">
+            <span>Transcript{t ? ` (${languageLabel(t.targetLang)})` : ""}</span>
+            {t && <span className="text-xs font-normal text-ink/60">translated · original in {languageLabel(sourceLang)}</span>}
+          </div>
           {m.segments.length === 0 ? (
             <p className="p-8 text-center text-sm text-ink/60">{m.status === "recording" ? "Waiting for the first audio chunk…" : "No speech was detected."}</p>
           ) : (
             <ol className="divide-y divide-ink/5">
               {m.segments.map((s) => (
                 <li key={s.id} className="grid grid-cols-[3.5rem_7rem_1fr] gap-3 px-5 py-2.5 text-sm">
-                  <span className="font-mono text-[11px] text-ink/60 pt-0.5">{fmt(s.startSec)}</span>
-                  <span className={cn("font-medium", speakerColor(s.speaker))}>{s.speaker}</span>
-                  <span className="leading-relaxed">{s.text}</span>
+                  <span className="pt-0.5 font-mono text-[11px] text-ink/60">{fmt(s.startSec)}</span>
+                  <span className={cn("font-medium", speakerColor(s.speaker))}>
+                    {s.speaker}
+                    {!t && s.language && s.language !== sourceLang && (
+                      <span lang={s.language} className="ml-1 rounded-pill border border-ink/15 px-1 text-[9px] font-normal text-ink/60" title={languageLabel(s.language)}>
+                        {LANGUAGE_INFO[s.language]?.native ?? s.language}
+                      </span>
+                    )}
+                  </span>
+                  <span className="leading-relaxed" lang={(t ? t.targetLang : s.language ?? sourceLang) ?? undefined}>{textOf(s)}</span>
                 </li>
               ))}
             </ol>
           )}
         </section>
 
-        <aside className="flex flex-col gap-4 lg:sticky lg:top-24 self-start">
-          <section className="rounded-card border border-ink/10 bg-cream-2 p-5">
+        <aside className="flex flex-col gap-4 self-start lg:sticky lg:top-24">
+          <section className="rounded-card border border-ink/10 bg-cream-2 p-5" lang={viewLang ?? undefined}>
             <div className="flex items-center justify-between">
-              <h2 className="text-sm font-medium">Notes</h2>
-              {m.notes && (
+              <h2 className="text-sm font-medium">Notes{t ? ` (${LANGUAGE_INFO[t.targetLang]?.english ?? t.targetLang})` : ""}</h2>
+              {notes && (
                 <button type="button" onClick={copyNotes} className="inline-flex items-center gap-1 text-xs text-ink/60 hover:text-ink">
                   {copied ? <Check className="size-3.5 text-forest" /> : <Copy className="size-3.5" />} {copied ? "Copied" : "Copy"}
                 </button>
               )}
             </div>
-            {!m.notes ? (
+            {t && !t.notes ? (
+              <p className="mt-3 text-sm text-ink/60">
+                Notes aren&rsquo;t translated yet.{" "}
+                <button type="button" onClick={() => translate(false)} className="underline">Translate notes</button>
+              </p>
+            ) : !notes ? (
               <p className="mt-3 text-sm text-ink/60">{m.status === "done" ? "No notes yet. Click Regenerate notes." : "Notes appear when the meeting ends."}</p>
             ) : (
               <div className="mt-3 flex flex-col gap-4 text-sm">
-                <p className="leading-relaxed">{m.notes.summary}</p>
-                {m.notes.actionItems.length > 0 && (
+                <p className="leading-relaxed">{notes.summary}</p>
+                {notes.actionItems.length > 0 && (
                   <div>
                     <h3 className="text-xs font-semibold uppercase tracking-wider text-ink/60">Action items</h3>
-                    <ul className="mt-1.5 flex flex-col gap-1.5">{m.notes.actionItems.map((a, i) => <li key={i} className="flex gap-2"><span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-forest" />{a}</li>)}</ul>
+                    <ul className="mt-1.5 flex flex-col gap-1.5">{notes.actionItems.map((a, i) => <li key={i} className="flex gap-2"><span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-forest" />{a}</li>)}</ul>
                   </div>
                 )}
-                {m.notes.decisions.length > 0 && (
+                {notes.decisions.length > 0 && (
                   <div>
                     <h3 className="text-xs font-semibold uppercase tracking-wider text-ink/60">Decisions</h3>
-                    <ul className="mt-1.5 flex flex-col gap-1.5">{m.notes.decisions.map((d, i) => <li key={i} className="flex gap-2"><span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-lavender-2" />{d}</li>)}</ul>
+                    <ul className="mt-1.5 flex flex-col gap-1.5">{notes.decisions.map((d, i) => <li key={i} className="flex gap-2"><span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-lavender-2" />{d}</li>)}</ul>
                   </div>
                 )}
-                {m.notes.questions.length > 0 && (
+                {notes.questions.length > 0 && (
                   <div>
                     <h3 className="text-xs font-semibold uppercase tracking-wider text-ink/60">Open questions</h3>
-                    <ul className="mt-1.5 flex flex-col gap-1.5">{m.notes.questions.map((q, i) => <li key={i} className="flex gap-2"><span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-coral" />{q}</li>)}</ul>
+                    <ul className="mt-1.5 flex flex-col gap-1.5">{notes.questions.map((q, i) => <li key={i} className="flex gap-2"><span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-coral" />{q}</li>)}</ul>
                   </div>
                 )}
               </div>

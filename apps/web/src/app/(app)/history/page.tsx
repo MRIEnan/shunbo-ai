@@ -23,6 +23,7 @@ export default async function HistoryPage() {
     tone: fromDbTone(d.tone),
     durationSec: d.durationSec,
     createdAt: d.createdAt.getTime(),
+    detectedLanguage: d.detectedLanguage,
   }));
 
   return (

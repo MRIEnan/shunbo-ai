@@ -3,6 +3,8 @@ import { getOpenAI, TRANSCRIBE_MODEL } from "@/lib/openai";
 import { rateLimit, clientKey } from "@/lib/rate-limit";
 import { currentUser } from "@/lib/session";
 import { getEntitlement } from "@/lib/billing";
+import { classifyTextLanguage } from "@/lib/meetings";
+import { LANGUAGE_INFO, isRomanized } from "@/lib/languages";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -51,14 +53,19 @@ export async function POST(req: Request) {
 
   try {
     const openai = getOpenAI();
-    const result = await openai.audio.transcriptions.create({
-      model: TRANSCRIBE_MODEL,
-      file: audio,
-      language: language && language !== "auto" ? language : undefined,
-      prompt: vocabulary.length ? `Names and terms: ${vocabulary.join(", ")}.` : undefined,
-      response_format: "json",
-    });
-    return NextResponse.json({ text: result.text.trim() });
+    const lang = language && language !== "auto" ? language : undefined;
+    const sample = lang ? LANGUAGE_INFO[lang]?.sample : undefined;
+    const vocabHint = vocabulary.length ? `Names and terms: ${vocabulary.join(", ")}.` : "";
+    const run = (prompt: string | undefined) =>
+      openai.audio.transcriptions.create({ model: TRANSCRIBE_MODEL, file: audio, language: lang, prompt, response_format: "json" });
+    let text = (await run([sample, vocabHint].filter(Boolean).join(" ") || undefined)).text.trim();
+    // Scripted languages (bn, hi, ar, …) sometimes come back romanized: retry once with a stronger native prompt.
+    if (lang && isRomanized(text, lang)) {
+      console.warn(`[transcribe] romanized output for ${lang}, retrying`);
+      text = (await run([sample, sample, vocabHint].filter(Boolean).join(" "))).text.trim();
+    }
+    const detectedLanguage = text ? await classifyTextLanguage(text) : null;
+    return NextResponse.json({ text, language: detectedLanguage });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Transcription failed";
     console.error("[transcribe]", message);

@@ -8,6 +8,7 @@ import { useRecorder } from "@/lib/use-recorder";
 import { store, FREE_ANON_LIMIT, LANGUAGES, type Dictation, type Settings } from "@/lib/local-store";
 import { TONES, TONE_LABELS, type Tone, type SnippetHint } from "@/lib/prompts";
 import { cn } from "@/lib/cn";
+import { languageLabel } from "@/lib/languages";
 
 type Stage = "idle" | "transcribing" | "polishing" | "error";
 type Props = { signedIn: boolean };
@@ -142,6 +143,7 @@ export function DictationApp({ signedIn }: Props) {
         }
         if (!tRes.ok) throw new Error(tData.error ?? "Transcription failed");
         const raw: string = tData.text ?? "";
+        const detectedLanguage: string | null = typeof tData.language === "string" ? tData.language : null;
         if (!raw.trim()) throw new Error("We didn't catch anything. Try speaking a little closer to the mic.");
 
         setStage("polishing");
@@ -159,6 +161,7 @@ export function DictationApp({ signedIn }: Props) {
           tone: settings.tone,
           durationSec,
           createdAt: Date.now(),
+          detectedLanguage,
         };
         if (signedIn) {
           try {
@@ -168,6 +171,7 @@ export function DictationApp({ signedIn }: Props) {
               tone: settings.tone,
               durationSec,
               language: settings.language,
+              detectedLanguage,
             });
             d = item;
             setQuota((q) => {
@@ -458,6 +462,7 @@ export function DictationApp({ signedIn }: Props) {
                       <p className="line-clamp-2 text-sm">{d.clean}</p>
                       <p className="mt-1 text-[11px] text-ink/60">
                         {new Date(d.createdAt).toLocaleString()} · {TONE_LABELS[d.tone]} · {Math.round(d.durationSec)}s
+                        {d.detectedLanguage && <> · <span lang={d.detectedLanguage}>{languageLabel(d.detectedLanguage)}</span></>}
                       </p>
                     </button>
                     <button type="button" onClick={() => copyText(d.clean)} aria-label="Copy" className="p-1 text-ink/60 hover:text-ink">

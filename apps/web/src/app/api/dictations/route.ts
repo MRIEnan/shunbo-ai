@@ -31,6 +31,7 @@ export async function GET(req: Request) {
     tone: fromDbTone(d.tone),
     durationSec: d.durationSec,
     createdAt: d.createdAt.getTime(),
+    detectedLanguage: d.detectedLanguage,
   }));
   return NextResponse.json({ items, nextCursor: hasMore ? items[items.length - 1].id : null });
 }
@@ -38,7 +39,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   const { user, response } = await requireUser();
   if (!user) return response;
-  let body: { raw?: unknown; clean?: unknown; tone?: unknown; durationSec?: unknown; language?: unknown; source?: unknown };
+  let body: { raw?: unknown; clean?: unknown; tone?: unknown; durationSec?: unknown; language?: unknown; detectedLanguage?: unknown; source?: unknown };
   try {
     body = await req.json();
   } catch {
@@ -58,6 +59,7 @@ export async function POST(req: Request) {
         clean: clean.slice(0, 20_000),
         tone: toDbTone(tone),
         language: typeof body.language === "string" ? body.language : null,
+        detectedLanguage: typeof body.detectedLanguage === "string" ? body.detectedLanguage : null,
         durationSec: typeof body.durationSec === "number" ? body.durationSec : 0,
         wordCount: words,
         source: body.source === "desktop" ? "desktop" : "web",

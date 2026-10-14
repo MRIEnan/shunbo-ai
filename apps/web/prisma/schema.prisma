@@ -128,6 +128,7 @@ model Dictation {
   clean       String
   tone        Tone
   language    String?
+  detectedLanguage String?
   durationSec Float    @default(0)
   wordCount   Int      @default(0)
   source      String   @default("web") // web | desktop
@@ -218,7 +219,9 @@ model Meeting {
   title       String
   status      String   @default("recording") // recording | processing | done | failed
   source      String   @default("desktop")   // desktop | web
-  language    String?
+  language    String?  // what the user asked for (null = auto)
+  detectedLanguage String?               // ISO-639-1 dominant spoken language
+  languages        String[] @default([]) // distinct chunk-level languages seen, e.g. ["bn","en"]
   diarize     Boolean  @default(true)
   durationSec Float    @default(0)
   error       String?
@@ -226,10 +229,11 @@ model Meeting {
   endedAt     DateTime?
   createdAt   DateTime @default(now())
 
-  user     User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  chunks   MeetingChunk[]
-  segments MeetingSegment[]
-  notes    MeetingNotes?
+  user         User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chunks       MeetingChunk[]
+  segments     MeetingSegment[]
+  notes        MeetingNotes?
+  translations MeetingTranslation[]
 
   @@index([userId, startedAt(sort: Desc)])
 }
@@ -257,6 +261,7 @@ model MeetingSegment {
   startSec   Float
   endSec     Float
   text       String
+  language   String? // chunk-level detected language
   meeting    Meeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
 
   @@index([meetingId, startSec])
@@ -268,6 +273,23 @@ model MeetingNotes {
   actionItems String[] @default([])
   decisions   String[] @default([])
   questions   String[] @default([])
+  language    String?  // language the notes were written in
   generatedAt DateTime @default(now())
   meeting     Meeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+}
+
+/// One cached translation of a meeting per target language.
+model MeetingTranslation {
+  id         String   @id @default(cuid())
+  meetingId  String
+  targetLang String
+  sourceLang String?
+  segments   Json     // { [segmentId]: translatedText }
+  notes      Json?    // Notes shape, or null when notes were regenerated and need re-translation
+  model      String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  meeting    Meeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+
+  @@unique([meetingId, targetLang])
 }

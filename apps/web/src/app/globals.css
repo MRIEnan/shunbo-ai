@@ -17,8 +17,8 @@
   --color-pink: #ffbcf2;
   --color-mint: #34d399;
 
-  --font-sans: var(--font-figtree), Figtree, Arial, sans-serif;
-  --font-serif: var(--font-garamond), "EB Garamond", Georgia, serif;
+  --font-sans: var(--font-figtree), Figtree, var(--font-noto-bengali), "Noto Sans Bengali", "Nirmala UI", "Noto Sans Devanagari", "Noto Sans Arabic", "Segoe UI", Arial, sans-serif;
+  --font-serif: var(--font-garamond), "EB Garamond", var(--font-noto-bengali), "Noto Sans Bengali", "Nirmala UI", "Noto Serif Devanagari", Georgia, serif;
 
   --radius-pill: 999px;
   --radius-card: 28px;

@@ -5,6 +5,7 @@ import { Search, Copy, Check, Trash2, Loader2 } from "lucide-react";
 import { TONE_LABELS } from "@/lib/prompts";
 import type { Dictation } from "@/lib/local-store";
 import { cn } from "@/lib/cn";
+import { LanguageBadge } from "@/components/meetings/LanguageBadge";
 
 type Props = { initial: Dictation[]; initialCursor: string | null };
 
@@ -81,8 +82,9 @@ export function HistoryList({ initial, initialCursor }: Props) {
                 {expanded === d.id && (
                   <p className="mt-3 rounded-xl bg-sand-2 p-3 font-serif text-sm italic text-ink/70">{d.raw}</p>
                 )}
-                <p className="mt-1.5 text-[11px] text-ink/60">
-                  {new Date(d.createdAt).toLocaleString()} · {TONE_LABELS[d.tone]} · {Math.round(d.durationSec)}s
+                <p className="mt-1.5 flex flex-wrap items-center gap-2 text-[11px] text-ink/60">
+                  <span>{new Date(d.createdAt).toLocaleString()} · {TONE_LABELS[d.tone]} · {Math.round(d.durationSec)}s</span>
+                  {d.detectedLanguage && <LanguageBadge code={d.detectedLanguage} />}
                 </p>
               </button>
               <button type="button" onClick={() => copy(d)} aria-label="Copy" className="p-1 text-ink/60 hover:text-ink">

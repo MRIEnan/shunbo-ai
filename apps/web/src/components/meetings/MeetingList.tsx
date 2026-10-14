@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Search, Loader2, Mic, Monitor, Globe } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { LanguageBadge } from "./LanguageBadge";
 
 export type MeetingRow = {
   id: string;
@@ -13,6 +14,8 @@ export type MeetingRow = {
   durationSec: number;
   startedAt: number;
   summary: string | null;
+  language?: string | null;
+  languages?: string[];
 };
 
 export function StatusPill({ status }: { status: string }) {
@@ -81,6 +84,7 @@ export function MeetingList({ initial, initialCursor }: { initial: MeetingRow[];
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-medium">{m.title}</span>
                     <StatusPill status={m.status} />
+                    <LanguageBadge code={m.language ?? null} extra={m.languages ?? []} />
                   </div>
                   {m.summary && <p className="mt-1 line-clamp-2 text-sm text-ink/70">{m.summary}</p>}
                   <p className="mt-1 text-[11px] text-ink/60">
