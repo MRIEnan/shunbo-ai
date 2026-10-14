@@ -142,6 +142,17 @@ Meeting recording with speaker-labelled transcripts and AI notes.
   one row per target (`MeetingTranslation`, max 5), and the page toggles Original / translated; `export?lang=xx`
   appends the translation. Regenerating notes invalidates only the translated notes. Dictations also store
   `detectedLanguage`, shown in History.
+- **Cost protection** (`apps/web/src/lib/metering.ts`): usage is metered on the server as it happens. `/api/transcribe`
+  writes the dictation words itself (`/api/dictations` only stores history); the chunks route meters each chunk index
+  once (first track wins) with seconds capped by the client claim, the wall clock since start, 300 s per chunk and, for
+  WAV, the byte length. The monthly allowance is enforced on every chunk: when it is used up the route returns
+  `402 {code:"meeting_limit_reached"}`, finishes the meeting with notes from what was captured, and both recorders
+  stop. Every plan has a 4-hour per-meeting ceiling; meetings still "recording" 30 minutes after their last chunk are
+  auto-finished lazily (list call and chunk uploads). The signed-out demo is limited server-side to 5 transcriptions and
+  5 cleanups per 24 h per hashed IP (`AnonymousUsage`, salt `AUTH_SECRET`), with ≤ 2 MB clips and ≤ 2,000 characters.
+  A single dictation is ≤ 10 MB / 10 minutes (recorders auto-stop) and needs ≥ 50 words of weekly allowance to start.
+  Pro has admin-editable fair-use limits (100,000 words/week, 2,400 meeting min/month) shown as "Fair use:" on the
+  pricing card; migration `4_cost_protection` applies them to existing rows.
 - Known limitation: speaker labels are assigned per 4-minute chunk, so "Speaker A" in one chunk may be a
   different person in the next. Carrying speaker identity across chunks is a follow-up.
 - Local Rust smoke test for the capture engine (needs real audio devices):

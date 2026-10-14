@@ -244,12 +244,20 @@ model MeetingChunk {
   index       Int
   track       String   // mic | system
   durationSec Float    @default(0)
+  meteredSec  Float    @default(0) // seconds billed for this chunk index (first track to arrive meters it)
   status      String   @default("pending") // pending | done | failed
   error       String?
   createdAt   DateTime @default(now())
   meeting     Meeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
 
   @@unique([meetingId, index, track])
+}
+
+/// Signed-out demo allowance, keyed by a salted hash of the client IP. One row per feature.
+model AnonymousUsage {
+  key         String   @id
+  count       Int      @default(0)
+  windowStart DateTime @default(now())
 }
 
 model MeetingSegment {

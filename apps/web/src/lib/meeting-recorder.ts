@@ -9,6 +9,7 @@ export type RecorderEvents = {
   onElapsed: (sec: number) => void;
   onUpload: (delta: { sent?: number; failed?: number; pending?: number }) => void;
   onEnded: () => void; // the user stopped sharing from the browser UI
+  onLimit?: (message: string) => void; // the server ended the meeting (allowance or 4-hour ceiling); stop recording
 };
 
 const CHUNK_MS = 4 * 60 * 1000;
@@ -30,6 +31,7 @@ export class MeetingRecorder {
   private raf: number | null = null;
   private ctx: AudioContext | null = null;
   private pending = 0;
+  private limitHit = false;
   meetingId: string | null = null;
 
   constructor(private events: RecorderEvents) {}
@@ -63,6 +65,7 @@ export class MeetingRecorder {
     this.pausedTotal = 0;
     this.pausedAt = 0;
     this.chunkIndex = { mic: 0, system: 0 };
+    this.limitHit = false;
     this.startRecorder("mic");
     this.startRecorder("system");
     this.rotateTimer = setInterval(() => this.rotate(), CHUNK_MS);
@@ -133,7 +136,7 @@ export class MeetingRecorder {
   }
 
   private async upload(track: Track, index: number, blob: Blob, offsetSec: number, durationSec: number) {
-    if (!this.meetingId || blob.size < 1000) return;
+    if (!this.meetingId || blob.size < 1000 || this.limitHit) return;
     this.pending++;
     this.events.onUpload({ pending: 1 });
     const fd = new FormData();
@@ -144,7 +147,16 @@ export class MeetingRecorder {
     fd.append("durationSec", String(durationSec));
     let ok = false;
     try {
-      ok = (await fetch(`/api/meetings/${this.meetingId}/chunks`, { method: "POST", body: fd })).ok;
+      const res = await fetch(`/api/meetings/${this.meetingId}/chunks`, { method: "POST", body: fd });
+      ok = res.ok;
+      if (res.status === 402 || res.status === 409) {
+        // The server ended the meeting: nothing more will be accepted.
+        const data = await res.json().catch(() => ({}));
+        if (!this.limitHit) {
+          this.limitHit = true;
+          this.events.onLimit?.(data.error ?? "The meeting was ended by the server.");
+        }
+      }
     } catch {
       ok = false;
     }

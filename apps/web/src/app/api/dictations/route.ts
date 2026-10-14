@@ -51,8 +51,8 @@ export async function POST(req: Request) {
   const tone: Tone = TONES.includes(body.tone as Tone) ? (body.tone as Tone) : "casual";
   const words = countWords(clean);
 
-  const [d] = await prisma.$transaction([
-    prisma.dictation.create({
+  // Usage was metered by /api/transcribe when the words were produced; this only stores history.
+  const d = await prisma.dictation.create({
       data: {
         userId: user.id,
         raw: raw.slice(0, 20_000),
@@ -64,9 +64,7 @@ export async function POST(req: Request) {
         wordCount: words,
         source: body.source === "desktop" ? "desktop" : "web",
       },
-    }),
-    prisma.usageRecord.create({ data: { userId: user.id, words } }),
-  ]);
+    });
   return NextResponse.json({
     item: { id: d.id, raw: d.raw, clean: d.clean, tone, durationSec: d.durationSec, createdAt: d.createdAt.getTime() },
   });

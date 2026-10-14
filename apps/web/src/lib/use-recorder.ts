@@ -10,7 +10,14 @@ function pickMimeType() {
   return candidates.find((t) => MediaRecorder.isTypeSupported(t)) ?? "";
 }
 
-export function useRecorder() {
+export type RecorderOptions = { maxSec?: number; onMaxReached?: () => void };
+
+export function useRecorder(options: RecorderOptions = {}) {
+  const optionsRef = useRef(options);
+  useEffect(() => {
+    optionsRef.current = options;
+  }, [options]);
+  const maxFired = useRef(false);
   const [state, setState] = useState<RecorderState>("idle");
   const [level, setLevel] = useState(0); // 0..1 input level
   const [elapsed, setElapsed] = useState(0); // seconds
@@ -63,7 +70,14 @@ export function useRecorder() {
         }
         const rms = Math.sqrt(sum / data.length);
         setLevel(Math.min(1, rms * 4));
-        setElapsed((performance.now() - startedAtRef.current) / 1000);
+        const elapsedSec = (performance.now() - startedAtRef.current) / 1000;
+        setElapsed(elapsedSec);
+        const max = optionsRef.current.maxSec;
+        if (max && elapsedSec >= max && !maxFired.current) {
+          // Single-dictation ceiling: the caller stops and runs the pipeline.
+          maxFired.current = true;
+          optionsRef.current.onMaxReached?.();
+        }
         rafRef.current = requestAnimationFrame(tick);
       };
 
@@ -82,6 +96,7 @@ export function useRecorder() {
       };
       recorderRef.current = rec;
       startedAtRef.current = performance.now();
+      maxFired.current = false;
       setElapsed(0);
       rec.start(250);
       setState("recording");

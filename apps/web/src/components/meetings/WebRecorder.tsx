@@ -66,6 +66,10 @@ export function WebRecorder({ remainingMinutes }: { remainingMinutes: number | n
       onElapsed: setElapsed,
       onUpload: (d) => setUploads((u) => ({ sent: u.sent + (d.sent ?? 0), failed: u.failed + (d.failed ?? 0), pending: u.pending + (d.pending ?? 0) })),
       onEnded: () => finishRef.current(),
+      onLimit: (message) => {
+        setError(message);
+        finishRef.current();
+      },
     });
     const e = engine.current;
     return () => e.abort();

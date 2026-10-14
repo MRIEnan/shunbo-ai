@@ -42,8 +42,18 @@ function Bars({ level, active }: { level: number; active: boolean }) {
   );
 }
 
+const MAX_DICTATION_SEC = 10 * 60;
+
 export function DictationApp({ signedIn }: Props) {
-  const rec = useRecorder();
+  const toggleRef = useRef<() => void>(() => {});
+  const rec = useRecorder({
+    maxSec: MAX_DICTATION_SEC,
+    onMaxReached: () => {
+      setNotice("Dictation stopped automatically after 10 minutes.");
+      toggleRef.current();
+    },
+  });
+  const [notice, setNotice] = useState<string | null>(null);
   const [stage, setStage] = useState<Stage>("idle");
   const [error, setError] = useState<string | null>(null);
   // Rendered client-only (see DictationLoader), so lazy initializers can read localStorage safely.
@@ -56,7 +66,7 @@ export function DictationApp({ signedIn }: Props) {
   const [copied, setCopied] = useState(false);
   const [newWord, setNewWord] = useState("");
   const [syncing, setSyncing] = useState(signedIn);
-  const [quota, setQuota] = useState<{ used: number; limit: number | null; planName: string } | null>(null);
+  const [quota, setQuota] = useState<{ used: number; limit: number | null; planName: string; planSlug: string } | null>(null);
   const [quotaHit, setQuotaHit] = useState(false);
   const busyRef = useRef(false);
   const vocabIds = useRef<Map<string, string>>(new Map());
@@ -74,10 +84,10 @@ export function DictationApp({ signedIn }: Props) {
             snippets: SnippetHint[];
           }>("/api/settings"),
           api<{ items: Dictation[] }>("/api/dictations?limit=20"),
-          api<{ used: number; limit: number | null; plan: { name: string }; overLimit: boolean }>("/api/usage"),
+          api<{ used: number; limit: number | null; plan: { name: string; slug: string }; overLimit: boolean }>("/api/usage"),
         ]);
         if (cancelled) return;
-        setQuota({ used: u.used, limit: u.limit, planName: u.plan.name });
+        setQuota({ used: u.used, limit: u.limit, planName: u.plan.name, planSlug: u.plan.slug });
         setQuotaHit(u.overLimit);
         vocabIds.current = new Map(s.vocabulary.map((w) => [w.word, w.id]));
         setSettings({ ...s.settings, vocabulary: s.vocabulary.map((w) => w.word) });
@@ -141,18 +151,35 @@ export function DictationApp({ signedIn }: Props) {
           setQuota((q) => (q ? { ...q, used: tData.used ?? q.used, limit: tData.limit ?? q.limit } : q));
           throw new Error(tData.error ?? "Weekly word limit reached");
         }
+        if (tRes.status === 401 && tData.code === "sign_in_required") {
+          // The server's demo allowance ran out: show the sign-in banner.
+          setUsage(store.setUsage(FREE_ANON_LIMIT));
+          throw new Error(tData.error ?? "Sign in to keep dictating");
+        }
         if (!tRes.ok) throw new Error(tData.error ?? "Transcription failed");
         const raw: string = tData.text ?? "";
+        const words: number = typeof tData.words === "number" ? tData.words : (raw.trim().match(/\S+/g) ?? []).length;
+        // Words are metered by the server as soon as the transcript exists.
+        if (signedIn) {
+          setQuota((q) => {
+            if (!q) return q;
+            const used = q.used + words;
+            if (q.limit !== null && used >= q.limit) setQuotaHit(true);
+            return { ...q, used };
+          });
+        }
         const detectedLanguage: string | null = typeof tData.language === "string" ? tData.language : null;
         if (!raw.trim()) throw new Error("We didn't catch anything. Try speaking a little closer to the mic.");
 
         setStage("polishing");
-        const { text: clean } = await api<{ text: string }>("/api/clean", "POST", {
-          raw,
-          tone: settings.tone,
-          vocabulary: settings.vocabulary,
-          snippets,
-        });
+        const cRes = await fetch("/api/clean", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ raw, tone: settings.tone, vocabulary: settings.vocabulary, snippets }) });
+        const cData = await cRes.json().catch(() => ({}));
+        if (cRes.status === 401 && cData.code === "sign_in_required") {
+          setUsage(store.setUsage(FREE_ANON_LIMIT));
+          throw new Error(cData.error ?? "Sign in to keep dictating");
+        }
+        if (!cRes.ok) throw new Error(cData.error ?? "Cleanup failed");
+        const clean: string = cData.text ?? raw;
 
         let d: Dictation = {
           id: crypto.randomUUID(),
@@ -174,12 +201,6 @@ export function DictationApp({ signedIn }: Props) {
               detectedLanguage,
             });
             d = item;
-            setQuota((q) => {
-              if (!q) return q;
-              const used = q.used + (clean.trim().match(/\S+/g) ?? []).length;
-              if (q.limit !== null && used >= q.limit) setQuotaHit(true);
-              return { ...q, used };
-            });
           } catch {
             setError("Saved locally only: couldn't sync this dictation to your account.");
           }
@@ -204,6 +225,7 @@ export function DictationApp({ signedIn }: Props) {
 
   const toggle = useCallback(async () => {
     if (busy) return;
+    setNotice(null);
     if (isRecording) {
       const duration = rec.elapsed;
       const blob = await rec.stop();
@@ -219,6 +241,10 @@ export function DictationApp({ signedIn }: Props) {
       }
     }
   }, [busy, isRecording, rec, runPipeline, limitReached]);
+
+  useEffect(() => {
+    toggleRef.current = toggle;
+  }, [toggle]);
 
   // Ctrl+Space toggles recording; Escape cancels
   useEffect(() => {
@@ -331,6 +357,7 @@ export function DictationApp({ signedIn }: Props) {
             </p>
           </div>
 
+          {notice && <p className="mt-4 rounded-xl bg-lavender px-3 py-2 text-center text-xs">{notice}</p>}
           <AnimatePresence>
             {error && (
               <motion.div
@@ -351,7 +378,7 @@ export function DictationApp({ signedIn }: Props) {
           {signedIn && quotaHit && (
             <div className="mt-5 rounded-xl bg-lavender p-4 text-sm">
               <div className="font-medium">You&rsquo;ve hit the {quota?.limit?.toLocaleString()} words per week limit on the {quota?.planName} plan.</div>
-              <p className="mt-1 text-ink/70">Upgrade to Pro for unlimited dictation, or wait until Monday when your limit resets.</p>
+              <p className="mt-1 text-ink/70">{quota?.planSlug === "free" ? "Upgrade to Pro for 100,000 words a week, or wait until Monday when your limit resets." : "This is the plan's fair-use limit. It resets on Monday."}</p>
               <div className="mt-3 flex flex-wrap gap-2">
                 <Link href="/pricing" className="inline-flex h-9 items-center rounded-pill bg-ink px-4 text-cream text-xs font-medium">
                   See plans
@@ -569,7 +596,7 @@ export function DictationApp({ signedIn }: Props) {
                 ? `${quota.planName} plan · unlimited words`
                 : `${Math.max(0, quota.limit - quota.used).toLocaleString()} of ${quota.limit.toLocaleString()} words left this week · `
               : ""}
-            {quota && quota.limit !== null && (
+            {quota && quota.limit !== null && quota.planSlug === "free" && (
               <Link href="/pricing" className="underline">Upgrade</Link>
             )}
           </p>

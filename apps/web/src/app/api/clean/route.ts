@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { getOpenAI, CLEAN_MODEL } from "@/lib/openai";
 import { cleanupSystemPrompt, TONES, type Tone, type SnippetHint } from "@/lib/prompts";
 import { rateLimit, clientKey } from "@/lib/rate-limit";
+import { currentUser } from "@/lib/session";
+import { anonymousAllow, ANON_MAX_TEXT_CHARS } from "@/lib/metering";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -23,8 +25,13 @@ export async function POST(req: Request) {
 
   const raw = typeof body.raw === "string" ? body.raw.trim() : "";
   if (!raw) return NextResponse.json({ error: "Nothing to clean" }, { status: 400 });
-  if (raw.length > MAX_CHARS) {
-    return NextResponse.json({ error: "Transcript too long" }, { status: 413 });
+  const user = await currentUser();
+  if (raw.length > (user ? MAX_CHARS : ANON_MAX_TEXT_CHARS)) {
+    return NextResponse.json({ error: user ? "Transcript too long" : "Demo transcripts are limited to 2,000 characters. Sign in for more.", code: "too_large" }, { status: 413 });
+  }
+  if (!user) {
+    const a = await anonymousAllow("clean", req);
+    if (!a.ok) return NextResponse.json({ error: `You've used the ${a.limit} free demo dictations for today. Sign in to keep going.`, code: "sign_in_required" }, { status: 401 });
   }
   const tone: Tone = TONES.includes(body.tone as Tone) ? (body.tone as Tone) : "casual";
   const vocabulary = Array.isArray(body.vocabulary)

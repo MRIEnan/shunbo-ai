@@ -34,12 +34,13 @@ export const DEFAULT_PLANS: Omit<PlanDTO, "stripeProductId" | "stripePriceId">[]
   {
     slug: "pro",
     name: "Pro",
-    description: "Unlimited dictation for people who write all day.",
+    description: "Dictation and meeting notes for people who write all day.",
     priceMonthlyCents: 1200,
     currency: "usd",
-    wordsPerWeek: null,
-    meetingMinutesPerMonth: null,
-    features: ["Unlimited words", "Unlimited meeting minutes", "Everything in Free", "Style presets per app", "Priority processing"],
+    // Fair use (admin-editable): bounds the worst-case cost of one subscription.
+    wordsPerWeek: 100_000,
+    meetingMinutesPerMonth: 2400,
+    features: ["100,000 words per week (fair use)", "40 hours of meetings per month (fair use)", "Everything in Free", "Style presets per app", "Priority processing"],
     cta: "checkout",
     active: true,
     sortOrder: 1,

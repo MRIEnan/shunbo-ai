@@ -30,6 +30,8 @@ export function Notetaker({ prefs, onConsent, remainingMinutes }: Props) {
   const chunkIndex = useRef<Record<Track, number>>({ mic: 0, system: 0 });
   const chunkStart = useRef(0);
   const pending = useRef(0);
+  const limitHit = useRef(false);
+  const stopRef = useRef<() => Promise<void>>(async () => {});
   const poll = useRef<ReturnType<typeof setInterval> | null>(null);
   const rotate = useRef<ReturnType<typeof setInterval> | null>(null);
   const prefsRef = useRef(prefs);
@@ -41,7 +43,7 @@ export function Notetaker({ prefs, onConsent, remainingMinutes }: Props) {
 
   const uploadTrack = async (track: Track, offsetSec: number, durationSec: number) => {
     const id = meetingId.current;
-    if (!id) return;
+    if (!id || limitHit.current) return;
     try {
       const wav = await invoke<ArrayBuffer>("meeting_capture_take", { track });
       if (wav.byteLength < 44 + 16_000 * 2) return; // under a second of audio: skip
@@ -60,11 +62,17 @@ export function Notetaker({ prefs, onConsent, remainingMinutes }: Props) {
           lastErr = e instanceof Error ? e.message : String(e);
           const fatal = e instanceof ApiError && [401, 402, 404, 409, 413].includes(e.status);
           logError(`chunk ${track}#${index} attempt ${attempt} failed: ${lastErr}`);
+          if (e instanceof ApiError && (e.status === 402 || e.status === 409) && !limitHit.current) {
+            // The server ended the meeting (monthly minutes or the 4-hour ceiling): stop recording and fetch the notes.
+            limitHit.current = true;
+            setError(e.status === 402 ? e.message : "The meeting was already ended on the server.");
+            void stopRef.current();
+          }
           if (fatal) break;
           await sleep(1500 * attempt);
         }
       }
-      if (!ok) setError(`Upload failed for ${track} chunk ${index}: ${lastErr}`);
+      if (!ok && !limitHit.current) setError(`Upload failed for ${track} chunk ${index}: ${lastErr}`);
       pending.current--;
       setUploads((u) => ({ pending: u.pending - 1, sent: u.sent + (ok ? 1 : 0), failed: u.failed + (ok ? 0 : 1) }));
     } catch (e) {
@@ -101,6 +109,7 @@ export function Notetaker({ prefs, onConsent, remainingMinutes }: Props) {
       setDevices(info);
       chunkIndex.current = { mic: 0, system: 0 };
       chunkStart.current = 0;
+      limitHit.current = false;
       setUploads({ sent: 0, failed: 0, pending: 0 });
       poll.current = setInterval(async () => {
         const [mic, system, secs] = await invoke<[number, number, number]>("meeting_capture_levels");
@@ -136,7 +145,7 @@ export function Notetaker({ prefs, onConsent, remainingMinutes }: Props) {
     stopTimers();
     try {
       const [, , secs] = await invoke<[number, number, number]>("meeting_capture_levels");
-      await flushChunks(secs);
+      if (!limitHit.current) await flushChunks(secs);
       await invoke("meeting_capture_stop");
       overlay({ state: "polishing" });
       for (let i = 0; i < 120 && pending.current > 0; i++) await new Promise((r) => setTimeout(r, 500));
@@ -158,6 +167,8 @@ export function Notetaker({ prefs, onConsent, remainingMinutes }: Props) {
       setLevels({ mic: 0, system: 0 });
     }
   };
+
+  stopRef.current = stop;
 
   useEffect(() => () => {
     stopTimers();

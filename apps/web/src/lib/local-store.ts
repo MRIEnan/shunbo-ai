@@ -69,6 +69,10 @@ export const store = {
     write(USAGE_KEY, n);
     return n;
   },
+  setUsage(n: number) {
+    write(USAGE_KEY, n);
+    return n;
+  },
 };
 
 export { LANGUAGES } from "./languages";

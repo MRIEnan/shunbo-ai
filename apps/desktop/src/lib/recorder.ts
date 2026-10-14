@@ -6,6 +6,10 @@ export class Recorder {
   private ctx: AudioContext | null = null;
   private raf: number | null = null;
   private startedAt = 0;
+  private maxFired = false;
+  /** Single-dictation ceiling in seconds; `onMax` fires once when it is reached (the caller should stop). */
+  maxSec = 10 * 60;
+  onMax: () => void = () => {};
   onLevel: (level: number, elapsed: number) => void = () => {};
 
   get recording() {
@@ -30,7 +34,12 @@ export class Recorder {
         const v = (data[i] - 128) / 128;
         sum += v * v;
       }
-      this.onLevel(Math.min(1, Math.sqrt(sum / data.length) * 4), (performance.now() - this.startedAt) / 1000);
+      const elapsed = (performance.now() - this.startedAt) / 1000;
+      this.onLevel(Math.min(1, Math.sqrt(sum / data.length) * 4), elapsed);
+      if (elapsed >= this.maxSec && !this.maxFired) {
+        this.maxFired = true;
+        this.onMax();
+      }
       this.raf = requestAnimationFrame(tick);
     };
     const mime = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"].find((t) => MediaRecorder.isTypeSupported(t));
@@ -40,6 +49,7 @@ export class Recorder {
       if (e.data.size > 0) this.chunks.push(e.data);
     };
     this.startedAt = performance.now();
+    this.maxFired = false;
     this.rec.start(250);
     this.raf = requestAnimationFrame(tick);
   }

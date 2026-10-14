@@ -107,6 +107,10 @@ export function MainWindow() {
     try {
       contextRef.current = (await invoke<string>("active_app").catch(() => "")) ?? "";
       recorder.current.onLevel = (level, elapsed) => overlay({ state: "listening", level, elapsed });
+      recorder.current.onMax = () => {
+        setStatus({ kind: "info", text: "Dictation stopped automatically after 10 minutes." });
+        stopDictationRef.current();
+      };
       await recorder.current.start();
       overlay({ state: "listening", level: 0, elapsed: 0 });
     } catch {
@@ -115,6 +119,7 @@ export function MainWindow() {
     }
   }, []);
 
+  const stopDictationRef = useRef<() => void>(() => {});
   const stopDictation = useCallback(async () => {
     if (!recorder.current.recording || busy.current) return;
     busy.current = true;
@@ -155,6 +160,9 @@ export function MainWindow() {
       setTimeout(() => overlay({ state: "idle" }), 2200);
     }
   }, []);
+  useEffect(() => {
+    stopDictationRef.current = stopDictation;
+  }, [stopDictation]);
 
   // ---- shortcut ----
   const bindShortcut = useCallback(

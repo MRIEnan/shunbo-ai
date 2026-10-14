@@ -2,12 +2,15 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
 import { getEntitlement } from "@/lib/billing";
+import { sweepStaleMeetings } from "@/lib/meeting-finish";
 
 export const runtime = "nodejs";
 
 export async function GET(req: Request) {
   const { user, response } = await requireUser();
   if (!user) return response;
+  // Abandoned recordings (no chunk for 30 minutes) are finished here so they get notes and stop accepting uploads.
+  await sweepStaleMeetings(user.id).catch((e) => console.warn("[meeting sweep]", e instanceof Error ? e.message : e));
   const url = new URL(req.url);
   const q = url.searchParams.get("q")?.trim() ?? "";
   const take = Math.min(100, Number(url.searchParams.get("limit") ?? 50));

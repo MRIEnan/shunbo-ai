@@ -63,8 +63,9 @@ export function PlanCards({ plans, currentPlan, signedIn, compact }: Props) {
                 {p.cta !== "contact" && <span className={cn("ml-1 font-sans text-sm", highlight ? "text-cream/60" : "text-ink/60")}>/ month</span>}
               </div>
               <p className={cn("mt-1 text-xs", highlight ? "text-cream/60" : "text-ink/60")}>
+                {p.priceMonthlyCents > 0 && (p.wordsPerWeek !== null || p.meetingMinutesPerMonth !== null) ? "Fair use: " : ""}
                 {p.wordsPerWeek ? `${p.wordsPerWeek.toLocaleString()} words per week` : "Unlimited words"} ·{" "}
-                {p.meetingMinutesPerMonth === null ? "unlimited meeting minutes" : `${p.meetingMinutesPerMonth} meeting min/month`}
+                {p.meetingMinutesPerMonth === null ? "unlimited meeting minutes" : `${p.meetingMinutesPerMonth.toLocaleString()} meeting min/month`}
               </p>
               <ul className="mt-5 flex flex-col gap-2 text-sm">
                 {p.features.map((f) => (
